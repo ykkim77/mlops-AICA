@@ -1,0 +1,1339 @@
+# 4주차 실습 — 모델 배포 및 서비스화
+
+> MLOps 방법론  
+> 주제: 로컬 REST API 서빙 → Docker 컨테이너 패키징 → 다중 인스턴스·부하분산  
+> 실습 환경: WSL2 Ubuntu 22.04 기준 / Python 3.10 이상 / Docker Desktop  
+> 클라우드 계정: 필요 없음
+
+---
+
+# 0. 실습 개요
+
+이번 주에는 3주차에서 MLflow Model Registry에 등록하고 `champion` Alias를 지정한 Iris Random Forest 모델을 실제 서비스 형태로 발전시킵니다.
+
+전체 흐름은 다음과 같습니다.
+
+```text
+[3주차 결과]
+MLflow Model Registry
+        ↓
+iris-random-forest@champion
+
+[2차시]
+Champion Model
+        ↓
+mlflow models serve
+        ↓
+Local REST API
+        ↓
+HTTP 요청으로 추론
+
+[3차시]
+Champion Model
+        ↓
+mlflow models build-docker
+        ↓
+Docker Image
+        ↓
+Model Container
+
+[4차시]
+Model Container × 3
+        ↓
+Nginx Load Balancer
+        ↓
+요청 분산
+```
+
+이번 주 핵심 질문은 다음과 같습니다.
+
+> **“선택한 모델을 다른 프로그램이 사용할 수 있는 서비스로 어떻게 만들 것인가?”**
+
+---
+
+# 1. 사전 준비
+
+## 1.1 3주차 MLflow Tracking Server 실행
+
+3주차 프로젝트에서 MLflow Server를 실행합니다.
+
+터미널 1:
+
+```bash
+cd ~/mlops-week03
+source .venv/bin/activate
+mlflow server --host 127.0.0.1 --port 5000
+```
+
+브라우저에서 확인:
+
+```text
+http://127.0.0.1:5000
+```
+
+MLflow UI의 **Models** 메뉴에서 다음 모델이 존재하는지 확인합니다.
+
+```text
+iris-random-forest
+```
+
+그리고 `champion` Alias가 특정 Version에 연결되어 있는지 확인합니다.
+
+---
+
+## 1.2 4주차 작업 디렉터리 생성
+
+터미널 2:
+
+```bash
+mkdir -p ~/mlops-week04
+cd ~/mlops-week04
+```
+
+---
+
+## 1.3 Python 가상환경
+
+3주차 환경을 그대로 사용해도 됩니다.
+
+새로 만들 경우:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install mlflow scikit-learn requests
+```
+
+---
+
+## 1.4 MLflow Tracking URI 설정
+
+CLI가 3주차 Tracking Server와 Model Registry를 바라보도록 설정합니다.
+
+```bash
+export MLFLOW_TRACKING_URI=http://127.0.0.1:5000
+```
+
+확인:
+
+```bash
+echo $MLFLOW_TRACKING_URI
+```
+
+출력:
+
+```text
+http://127.0.0.1:5000
+```
+
+> 새 터미널을 열면 이 환경변수를 다시 설정해야 합니다.
+
+---
+
+## 1.5 Champion 모델 확인
+
+Python으로 `champion` Alias가 가리키는 모델을 확인합니다.
+
+```bash
+python - <<'PY'
+import mlflow
+from mlflow import MlflowClient
+
+mlflow.set_tracking_uri("http://127.0.0.1:5000")
+
+client = MlflowClient()
+
+model = client.get_model_version_by_alias(
+    "iris-random-forest",
+    "champion",
+)
+
+print("Model Name :", model.name)
+print("Version    :", model.version)
+print("Run ID     :", model.run_id)
+PY
+```
+
+정상적으로 Version과 Run ID가 출력되는지 확인합니다.
+
+---
+
+# 2차시 실습 — MLflow 모델을 로컬 REST API로 서빙
+
+# 2. 실습 목표
+
+- 모델 파일과 모델 서비스의 차이를 이해함
+- MLflow Model Registry의 `champion` 모델을 로컬 API 서버로 실행함
+- `/invocations` 엔드포인트로 HTTP 요청을 전송함
+- JSON 요청과 예측 응답의 구조를 확인함
+- 모델 서빙의 가장 기본적인 형태를 이해함
+
+---
+
+# 3. 모델과 모델 서비스의 차이
+
+학습이 끝난 모델은 아직 다른 프로그램이 호출할 수 있는 서비스가 아닙니다.
+
+```text
+Model File
+```
+
+을 다음과 같이 바꾸어야 합니다.
+
+```text
+Client
+   ↓
+HTTP Request
+   ↓
+Model Server
+   ↓
+Model
+   ↓
+Prediction
+   ↓
+HTTP Response
+```
+
+이번 차시에서는 MLflow가 제공하는 Model Server를 사용합니다.
+
+---
+
+# 4. MLflow Model Serving 실행
+
+## 4.1 모델 URI
+
+3주차에서 등록한 모델:
+
+```text
+iris-random-forest
+```
+
+Alias:
+
+```text
+champion
+```
+
+따라서 모델 URI는 다음과 같습니다.
+
+```text
+models:/iris-random-forest@champion
+```
+
+---
+
+## 4.2 모델 서버 실행
+
+터미널 2에서:
+
+```bash
+cd ~/mlops-week04
+source .venv/bin/activate
+
+export MLFLOW_TRACKING_URI=http://127.0.0.1:5000
+
+mlflow models serve \
+  --model-uri "models:/iris-random-forest@champion" \
+  --port 5001 \
+  --host 127.0.0.1 \
+  --env-manager local
+```
+
+> `5000` 포트는 Tracking Server가 사용 중이므로 Model Serving은 `5001`을 사용합니다.
+
+정상적으로 시작되면 Model Server가 다음 주소에서 동작합니다.
+
+```text
+http://127.0.0.1:5001
+```
+
+이 터미널은 서버 실행용으로 그대로 둡니다.
+
+---
+
+# 5. 서버 상태 확인
+
+새 터미널 3을 열고 다음 명령을 실행합니다.
+
+```bash
+curl http://127.0.0.1:5001/ping
+```
+
+또는:
+
+```bash
+curl http://127.0.0.1:5001/health
+```
+
+버전 확인:
+
+```bash
+curl http://127.0.0.1:5001/version
+```
+
+---
+
+# 6. REST API로 예측 요청
+
+Iris 데이터의 입력 특성은 4개입니다.
+
+```text
+sepal length
+sepal width
+petal length
+petal width
+```
+
+예제 입력:
+
+```text
+5.1, 3.5, 1.4, 0.2
+```
+
+요청:
+
+```bash
+curl -X POST \
+  http://127.0.0.1:5001/invocations \
+  -H "Content-Type: application/json" \
+  -d '{
+        "inputs": [
+          [5.1, 3.5, 1.4, 0.2]
+        ]
+      }'
+```
+
+예측 결과가 JSON으로 반환되는지 확인합니다.
+
+---
+
+# 7. 여러 데이터 한 번에 요청
+
+```bash
+curl -X POST \
+  http://127.0.0.1:5001/invocations \
+  -H "Content-Type: application/json" \
+  -d '{
+        "inputs": [
+          [5.1, 3.5, 1.4, 0.2],
+          [6.0, 2.9, 4.5, 1.5],
+          [6.7, 3.1, 5.6, 2.4]
+        ]
+      }'
+```
+
+하나의 요청으로 여러 건의 추론을 수행할 수 있습니다.
+
+---
+
+# 8. Python 프로그램에서 REST API 호출
+
+`predict_client.py` 생성:
+
+```bash
+cat > predict_client.py <<'PY'
+import requests
+
+URL = "http://127.0.0.1:5001/invocations"
+
+payload = {
+    "inputs": [
+        [5.1, 3.5, 1.4, 0.2],
+        [6.0, 2.9, 4.5, 1.5],
+        [6.7, 3.1, 5.6, 2.4],
+    ]
+}
+
+response = requests.post(
+    URL,
+    json=payload,
+    timeout=10,
+)
+
+print("status code:", response.status_code)
+print("response   :", response.json())
+PY
+```
+
+실행:
+
+```bash
+python predict_client.py
+```
+
+---
+
+# 9. REST API 구조 정리
+
+```text
+Client
+   │
+   │ POST /invocations
+   │ JSON
+   ↓
+MLflow Model Server
+   ↓
+Champion Model
+   ↓
+Prediction
+   │
+   │ JSON
+   ↓
+Client
+```
+
+모델을 호출하는 프로그램은 모델의 내부 구현을 알 필요가 없습니다.
+
+클라이언트가 알아야 하는 것은:
+
+```text
+URL
+HTTP Method
+Input Format
+Output Format
+```
+
+입니다.
+
+---
+
+# 10. 2차시 핵심
+
+```text
+Model
+```
+
+은 학습 결과물이고,
+
+```text
+Model Serving
+```
+
+은 그 모델을 다른 시스템이 호출할 수 있도록 실행하는 것입니다.
+
+이번 실습에서는:
+
+```text
+MLflow Registry
+      ↓
+champion
+      ↓
+mlflow models serve
+      ↓
+REST API
+```
+
+를 구성했습니다.
+
+---
+
+# 3차시 실습 — 모델을 Docker 이미지로 패키징
+
+# 11. 실습 목표
+
+- 로컬 프로세스 기반 서빙의 한계를 이해함
+- MLflow 모델을 Docker Image로 패키징함
+- Docker Container로 모델 서버를 실행함
+- 동일한 REST API를 컨테이너 환경에서도 호출함
+- 모델 + 런타임 + 의존성을 함께 배포하는 개념을 이해함
+
+---
+
+# 12. Docker 동작 확인
+
+Docker Desktop이 실행되어 있어야 합니다.
+
+확인:
+
+```bash
+docker version
+```
+
+간단한 테스트:
+
+```bash
+docker run --rm hello-world
+```
+
+정상 출력이 나타나는지 확인합니다.
+
+---
+
+# 13. 왜 컨테이너가 필요한가?
+
+2차시의 실행 방식:
+
+```text
+내 PC
+ ├─ Python
+ ├─ MLflow
+ ├─ scikit-learn
+ └─ Model Server
+```
+
+다른 컴퓨터에서 실행하려면 동일한 환경을 다시 맞춰야 합니다.
+
+Docker를 사용하면:
+
+```text
+Docker Image
+ ├─ OS Runtime
+ ├─ Python
+ ├─ MLflow
+ ├─ Model Dependencies
+ └─ Model
+```
+
+을 하나의 실행 가능한 패키지로 만들 수 있습니다.
+
+---
+
+# 14. MLflow 모델 Docker Image 빌드
+
+3주차 Model Registry의 `champion` 모델을 이미지로 만듭니다.
+
+```bash
+cd ~/mlops-week04
+
+export MLFLOW_TRACKING_URI=http://127.0.0.1:5000
+
+mlflow models build-docker \
+  --model-uri "models:/iris-random-forest@champion" \
+  --name week04-iris-model
+```
+
+빌드에는 시간이 걸릴 수 있습니다.
+
+---
+
+# 15. Docker Image 확인
+
+```bash
+docker images
+```
+
+다음 이미지가 나타나는지 확인합니다.
+
+```text
+week04-iris-model
+```
+
+필요하면:
+
+```bash
+docker image inspect week04-iris-model
+```
+
+---
+
+# 16. Docker Container 실행
+
+MLflow가 생성한 이미지의 Model Server는 컨테이너 내부 `8080` 포트를 사용합니다.
+
+실행:
+
+```bash
+docker run --rm \
+  --name iris-model \
+  -p 5002:8080 \
+  week04-iris-model
+```
+
+구조:
+
+```text
+Host PC                 Docker Container
+
+localhost:5002   →      8080
+                         ↓
+                    MLflow Server
+                         ↓
+                    Champion Model
+```
+
+이 터미널은 컨테이너 실행용으로 그대로 둡니다.
+
+---
+
+# 17. 컨테이너 모델 상태 확인
+
+다른 터미널에서:
+
+```bash
+curl http://127.0.0.1:5002/ping
+```
+
+예측 요청:
+
+```bash
+curl -X POST \
+  http://127.0.0.1:5002/invocations \
+  -H "Content-Type: application/json" \
+  -d '{
+        "inputs": [
+          [5.1, 3.5, 1.4, 0.2]
+        ]
+      }'
+```
+
+2차시의 결과와 동일한 형태의 예측이 반환되는지 확인합니다.
+
+---
+
+# 18. 로컬 서빙과 Docker 서빙 비교
+
+## 로컬 프로세스
+
+```text
+mlflow models serve
+```
+
+실행 환경:
+
+```text
+학생 PC의 Python 환경
+```
+
+## Docker
+
+```text
+docker run
+```
+
+실행 환경:
+
+```text
+Docker Image 안에 패키징된 독립 환경
+```
+
+핵심 차이:
+
+| 구분 | 로컬 서빙 | Docker 서빙 |
+|---|---|---|
+| 실행 환경 | Host 환경 의존 | Image에 포함 |
+| 이동성 | 낮음 | 높음 |
+| 배포 일관성 | 환경에 따라 달라질 수 있음 | 동일 Image 사용 |
+| 확장 | 추가 프로세스 필요 | Container 복제 용이 |
+
+---
+
+# 19. 컨테이너 중지
+
+`docker run`을 실행한 터미널에서:
+
+```text
+Ctrl + C
+```
+
+또는 다른 터미널에서:
+
+```bash
+docker stop iris-model
+```
+
+---
+
+# 20. 3차시 핵심
+
+2차시:
+
+```text
+Model
+ ↓
+Local Process
+ ↓
+REST API
+```
+
+3차시:
+
+```text
+Model
+ ↓
+Docker Image
+ ↓
+Container
+ ↓
+REST API
+```
+
+컨테이너화를 통해:
+
+```text
+Model
++
+Runtime
++
+Dependencies
+```
+
+를 하나의 배포 단위로 만들 수 있습니다.
+
+---
+
+# 4차시 실습 — 다중 인스턴스와 부하분산
+
+# 21. 실습 목표
+
+- 하나의 모델 서버만 사용할 때의 한계를 이해함
+- 동일한 모델 컨테이너를 여러 개 실행함
+- Nginx를 Reverse Proxy / Load Balancer로 구성함
+- 요청이 여러 모델 인스턴스로 분산되는 것을 확인함
+- Scale-out과 Load Balancing의 기본 원리를 이해함
+
+> 이번 실습은 **자동 확장(Auto Scaling)** 실습이 아닙니다.  
+> 동일한 컨테이너를 여러 개 미리 실행하고 요청을 분산하는 **수평 확장(Scale-out)과 Load Balancing의 기본 구조**를 실습합니다.
+
+---
+
+# 22. 단일 인스턴스의 한계
+
+```text
+Clients
+   ↓
+Model Server 1
+```
+
+Model Server 하나에 장애가 발생하면:
+
+```text
+Service Down
+```
+
+요청이 많아지면:
+
+```text
+Model Server 1
+      ↓
+처리 지연
+```
+
+이를 개선하는 기본 구조:
+
+```text
+               ┌→ Model 1
+Client → LB ───┼→ Model 2
+               └→ Model 3
+```
+
+---
+
+# 23. Docker Compose 프로젝트 구성
+
+작업 디렉터리:
+
+```bash
+cd ~/mlops-week04
+mkdir -p loadbalancer
+cd loadbalancer
+```
+
+구조:
+
+```text
+loadbalancer/
+├── compose.yaml
+└── nginx.conf
+```
+
+---
+
+# 24. Nginx 설정
+
+`nginx.conf` 생성:
+
+```bash
+cat > nginx.conf <<'NGINX'
+events {}
+
+http {
+    upstream model_backend {
+        server model1:8080;
+        server model2:8080;
+        server model3:8080;
+    }
+
+    server {
+        listen 80;
+
+        location / {
+            proxy_pass http://model_backend;
+
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+
+            # 어떤 Backend가 응답했는지 확인하기 위한 실습용 Header
+            add_header X-Upstream-Addr $upstream_addr always;
+        }
+    }
+}
+NGINX
+```
+
+---
+
+# 25. Docker Compose 작성
+
+`compose.yaml` 생성:
+
+```bash
+cat > compose.yaml <<'YAML'
+services:
+
+  model1:
+    image: week04-iris-model
+    restart: unless-stopped
+
+  model2:
+    image: week04-iris-model
+    restart: unless-stopped
+
+  model3:
+    image: week04-iris-model
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - model1
+      - model2
+      - model3
+YAML
+```
+
+---
+
+# 26. 다중 모델 서버 실행
+
+```bash
+docker compose up -d
+```
+
+상태 확인:
+
+```bash
+docker compose ps
+```
+
+다음 4개 서비스가 실행되어야 합니다.
+
+```text
+model1
+model2
+model3
+nginx
+```
+
+---
+
+# 27. Nginx를 통해 예측 요청
+
+이제 사용자는 개별 모델 서버의 주소를 알 필요가 없습니다.
+
+요청 주소:
+
+```text
+http://127.0.0.1:8080
+```
+
+예측 요청:
+
+```bash
+curl -i -X POST \
+  http://127.0.0.1:8080/invocations \
+  -H "Content-Type: application/json" \
+  -d '{
+        "inputs": [
+          [5.1, 3.5, 1.4, 0.2]
+        ]
+      }'
+```
+
+HTTP Header에서 다음 값을 확인합니다.
+
+```text
+X-Upstream-Addr:
+```
+
+이 값은 실제 요청을 처리한 모델 컨테이너의 주소입니다.
+
+---
+
+# 28. 여러 번 요청하여 부하분산 확인
+
+다음 명령을 여러 번 실행합니다.
+
+```bash
+for i in {1..9}
+do
+  echo "===== request $i ====="
+
+  curl -s -D - \
+    -o /dev/null \
+    -X POST \
+    http://127.0.0.1:8080/invocations \
+    -H "Content-Type: application/json" \
+    -d '{
+          "inputs": [
+            [5.1, 3.5, 1.4, 0.2]
+          ]
+        }' \
+    | grep -i X-Upstream-Addr
+
+done
+```
+
+요청을 처리한 Backend 주소가 바뀌는지 확인합니다.
+
+Nginx의 기본 Round Robin 방식으로 여러 Backend에 요청이 분산됩니다.
+
+---
+
+# 29. 전체 응답도 함께 확인
+
+```bash
+for i in {1..6}
+do
+  echo
+  echo "===== request $i ====="
+
+  curl -i -X POST \
+    http://127.0.0.1:8080/invocations \
+    -H "Content-Type: application/json" \
+    -d '{
+          "inputs": [
+            [6.0, 2.9, 4.5, 1.5]
+          ]
+        }'
+
+  echo
+
+done
+```
+
+확인:
+
+```text
+Prediction은 동일
+X-Upstream-Addr는 달라질 수 있음
+```
+
+즉 동일한 Docker Image를 사용하므로 각 인스턴스의 모델은 동일하지만, 요청은 서로 다른 인스턴스가 처리합니다.
+
+---
+
+# 30. 컨테이너 로그 확인
+
+```bash
+docker compose logs model1
+```
+
+```bash
+docker compose logs model2
+```
+
+```bash
+docker compose logs model3
+```
+
+Nginx 로그:
+
+```bash
+docker compose logs nginx
+```
+
+실시간 로그:
+
+```bash
+docker compose logs -f
+```
+
+종료:
+
+```text
+Ctrl + C
+```
+
+---
+
+# 31. 하나의 Model Instance 중지
+
+고가용성 개념을 간단히 확인합니다.
+
+```bash
+docker compose stop model2
+```
+
+상태:
+
+```bash
+docker compose ps
+```
+
+다시 요청:
+
+```bash
+curl -i -X POST \
+  http://127.0.0.1:8080/invocations \
+  -H "Content-Type: application/json" \
+  -d '{
+        "inputs": [
+          [5.1, 3.5, 1.4, 0.2]
+        ]
+      }'
+```
+
+나머지 인스턴스에서 응답하는지 확인합니다.
+
+> Nginx는 실패한 Backend를 일시적으로 제외하고 나머지 Backend로 요청을 전달할 수 있습니다. 이 실습은 고가용성의 기본 개념을 체감하기 위한 간단한 예입니다.
+
+중지했던 인스턴스 다시 실행:
+
+```bash
+docker compose start model2
+```
+
+---
+
+# 32. Scale-up과 Scale-out
+
+## Scale-up
+
+한 서버의 자원을 크게 만듦
+
+```text
+Model Server
+
+CPU 2 → CPU 8
+RAM 4GB → RAM 32GB
+```
+
+## Scale-out
+
+동일한 서버의 개수를 늘림
+
+```text
+Model 1
+Model 2
+Model 3
+```
+
+이번 실습은:
+
+```text
+Scale-out
++
+Load Balancing
+```
+
+을 직접 구현한 것입니다.
+
+---
+
+# 33. Load Balancer의 역할
+
+```text
+                ┌→ Model 1
+                │
+Client → Nginx ─┼→ Model 2
+                │
+                └→ Model 3
+```
+
+Nginx는:
+
+- 사용자의 단일 진입점 제공
+- 여러 Backend에 요청 분산
+- 개별 Backend 주소 숨김
+- 장애 인스턴스에 대한 기본적인 우회 가능
+
+역할을 수행합니다.
+
+---
+
+# 34. 이번 실습과 Kubernetes의 관계
+
+이번 실습:
+
+```text
+Docker Container × 3
+        ↓
+Nginx
+```
+
+Kubernetes 환경에서는 유사한 문제를 다음 구성요소가 담당합니다.
+
+```text
+Docker Container 개념
+        ↓
+Pod
+
+여러 Model Instance
+        ↓
+Replica
+
+Replica 수 관리
+        ↓
+Deployment
+
+내부 부하분산
+        ↓
+Service
+
+외부 HTTP 진입
+        ↓
+Ingress / Gateway
+```
+
+이번 실습에서는 컨테이너 수를 사람이 직접 정했습니다.
+
+Kubernetes의 HPA 같은 기능을 사용하면 CPU 등의 지표를 기반으로 Replica 수를 자동으로 증감할 수 있습니다.
+
+즉:
+
+```text
+이번 실습
+수동 Scale-out + Load Balancing
+
+Kubernetes / Cloud
+자동화된 Scale-out + Load Balancing 가능
+```
+
+---
+
+# 35. 실습 종료 및 정리
+
+전체 컨테이너 종료:
+
+```bash
+docker compose down
+```
+
+확인:
+
+```bash
+docker ps
+```
+
+Docker Image는 그대로 남아 있습니다.
+
+```bash
+docker images
+```
+
+---
+
+# 36. 4주차 전체 실습 흐름
+
+```text
+MLflow Model Registry
+        ↓
+champion
+        ↓
+[2차시]
+mlflow models serve
+        ↓
+Local REST API
+        ↓
+HTTP Inference
+        ↓
+[3차시]
+mlflow models build-docker
+        ↓
+Docker Image
+        ↓
+Container
+        ↓
+[4차시]
+Container × 3
+        ↓
+Nginx
+        ↓
+Load Balancing
+```
+
+---
+
+# 37. 핵심 개념 정리
+
+## 1. Model Serving
+
+학습된 모델을 다른 시스템이 호출할 수 있는 서비스로 실행합니다.
+
+```text
+Model
+ ↓
+Model Server
+ ↓
+API
+```
+
+---
+
+## 2. REST API
+
+클라이언트와 모델 서버가 HTTP를 통해 요청과 응답을 주고받습니다.
+
+```text
+POST /invocations
+```
+
+입력:
+
+```text
+JSON
+```
+
+출력:
+
+```text
+Prediction
+```
+
+---
+
+## 3. Containerization
+
+모델과 실행 환경을 Docker Image로 패키징합니다.
+
+```text
+Model
++
+Runtime
++
+Dependencies
+      ↓
+Docker Image
+```
+
+---
+
+## 4. Instance
+
+동일한 Docker Image로 여러 Container를 실행할 수 있습니다.
+
+```text
+Image
+ ├→ Container 1
+ ├→ Container 2
+ └→ Container 3
+```
+
+---
+
+## 5. Load Balancing
+
+사용자의 요청을 여러 Model Instance에 분산합니다.
+
+```text
+Client
+  ↓
+Load Balancer
+  ↓
+Model Instances
+```
+
+---
+
+## 6. Scale-out
+
+서버 한 대를 크게 만드는 것이 아니라 동일한 서비스 인스턴스의 수를 늘립니다.
+
+```text
+1 Instance
+   ↓
+3 Instances
+```
+
+---
+
+# 38. 3주차와 4주차 연결
+
+```text
+3주차
+
+Experiment
+   ↓
+Run
+   ↓
+Model Registry
+   ↓
+champion
+
+4주차
+
+champion
+   ↓
+Model Serving
+   ↓
+REST API
+   ↓
+Docker
+   ↓
+Multi Instance
+   ↓
+Load Balancing
+```
+
+---
+
+# 39. 다음 주차 연결
+
+5주차에서는 지금까지 사람이 직접 실행하던 과정을 자동화합니다.
+
+현재:
+
+```text
+개발자
+ ↓
+명령 실행
+ ↓
+학습
+ ↓
+테스트
+ ↓
+배포 준비
+```
+
+5주차:
+
+```text
+Git Push
+   ↓
+GitHub Actions
+   ↓
+Test
+   ↓
+Pipeline Trigger
+   ↓
+자동 실행
+```
+
+그리고 ZenML을 이용하여:
+
+```text
+Preprocess
+   ↓
+Train
+   ↓
+Evaluate
+```
+
+과정을 하나의 ML Pipeline으로 연결합니다.
+
+---
+
+# 40. 선택 과제
+
+1. `model1`, `model2`, `model3` 중 하나를 중지한 뒤 요청이 계속 처리되는지 확인합니다.
+2. 모델 인스턴스를 2개만 사용하도록 `nginx.conf`와 `compose.yaml`을 수정합니다.
+3. 모델 인스턴스를 4개로 늘려봅니다.
+4. 서로 다른 Iris 입력값을 10번 이상 전송합니다.
+5. Nginx의 `X-Upstream-Addr` Header를 이용하여 어느 Backend가 요청을 처리했는지 기록합니다.
+6. Scale-up과 Scale-out의 차이를 자신의 말로 설명합니다.
+7. Docker Compose에서 구현한 구조가 Kubernetes의 Pod / Deployment / Service 중 무엇에 대응되는지 정리합니다.
