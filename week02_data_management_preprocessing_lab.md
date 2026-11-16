@@ -2,7 +2,7 @@
 
 > MLOps 방법론  
 > 주제: Pandas 기반 데이터 전처리 → DVC 데이터 버전관리 → 데이터 품질 검증  
-> 실습 환경: WSL2 Ubuntu 22.04 기준 / Python 3.10 이상 / Git  
+> 실습 환경: Windows 10/11 + WSL2 Ubuntu 22.04 / Python 3.10 이상 / Git  
 > 클라우드 계정: 필요 없음
 
 ---
@@ -35,6 +35,104 @@ DVC 버전관리
 ---
 
 # 1. 공통 실습 환경 구성
+
+## 1.0 WSL2 Ubuntu 설치 (Windows 최초 1회)
+
+2~7주차 실습 명령은 모두 Linux 셸(bash) 기준임 → Windows에서는 WSL2(Windows Subsystem for Linux)로 Ubuntu를 설치하여 사용
+
+- 이미 WSL2 Ubuntu가 설치되어 있으면 1.0.5부터 진행
+- 4주차 Docker Desktop도 WSL2 기반으로 동작하므로 이번에 함께 준비
+
+### 1.0.1 설치 조건 확인
+
+- Windows 10 버전 2004(빌드 19041) 이상 또는 Windows 11
+- BIOS/UEFI에서 CPU 가상화 기능 활성화 (Intel VT-x 또는 AMD-V/SVM)
+- 확인 방법: `작업 관리자` → `성능` → `CPU` → `가상화: 사용`
+
+### 1.0.2 Ubuntu 설치
+
+`시작` 메뉴에서 **PowerShell**을 마우스 오른쪽 버튼으로 클릭 → **관리자 권한으로 실행**
+
+```powershell
+wsl --install -d Ubuntu-22.04
+```
+
+- WSL2 기능과 Ubuntu 22.04를 함께 설치함
+- `-d Ubuntu-22.04` 없이 `wsl --install`만 실행하면 최신 Ubuntu가 설치됨 → 실습 자료 기준과 맞추기 위해 버전을 지정함
+- 설치 완료 후 **Windows 재부팅** 필요
+
+### 1.0.3 Ubuntu 사용자 계정 생성
+
+재부팅 후 Ubuntu 창이 자동으로 열림 (열리지 않으면 `시작` 메뉴에서 `Ubuntu 22.04` 실행)
+
+- Linux 사용자 이름 입력 (영문 소문자 권장, 예: `student`)
+- 비밀번호 입력 및 확인
+- Windows 계정과 별개의 계정임
+- 비밀번호 입력 시 화면에 아무것도 표시되지 않는 것이 정상
+- 이 비밀번호는 이후 `sudo` 명령 실행 시 사용하므로 반드시 기억
+
+### 1.0.4 설치 확인
+
+PowerShell에서:
+
+```powershell
+wsl -l -v
+```
+
+출력 예:
+
+```text
+  NAME            STATE           VERSION
+* Ubuntu-22.04    Running         2
+```
+
+`VERSION`이 `2`인지 확인
+
+### 1.0.5 Ubuntu 기본 패키지 설치
+
+Ubuntu 터미널에서:
+
+```bash
+sudo apt update
+sudo apt upgrade -y
+sudo apt install -y python3-venv python3-pip git
+```
+
+- Ubuntu 22.04는 기본으로 `python3-venv`가 설치되어 있지 않음 → 설치하지 않으면 1.3의 `python3 -m venv` 실행 시 `ensurepip is not available` 오류 발생
+
+확인:
+
+```bash
+python3 --version
+git --version
+```
+
+### 1.0.6 Git 사용자 정보 설정
+
+3차시에서 `git commit`을 실행하므로 미리 설정함 → 설정하지 않으면 commit 단계에서 오류 발생
+
+```bash
+git config --global user.name "홍길동"
+git config --global user.email "student@example.com"
+```
+
+### 1.0.7 작업 위치 주의
+
+- 실습 폴더는 Ubuntu 홈 디렉터리(`~`) 아래에 생성함
+- `/mnt/c/...` (Windows C 드라이브)에서 작업하면 파일 입출력이 크게 느려지고 권한 문제가 생길 수 있음
+- Windows 탐색기에서 Ubuntu 폴더 열기: Ubuntu 터미널에서 `explorer.exe .` 실행
+- 또는 탐색기 주소창에 `\\wsl$\Ubuntu-22.04\home\<사용자이름>` 입력
+
+### 1.0.8 자주 발생하는 오류
+
+| 증상 | 원인 및 해결 |
+|---|---|
+| `0x80370102` 오류 | CPU 가상화 비활성화 → BIOS/UEFI에서 VT-x 또는 AMD-V(SVM) 활성화 |
+| `wsl -l -v`의 VERSION이 `1` | PowerShell에서 `wsl --set-version Ubuntu-22.04 2` 실행 |
+| WSL 업데이트 필요 안내 | PowerShell에서 `wsl --update` 실행 |
+| `python3 -m venv` 실패 | 1.0.5의 `python3-venv` 설치 여부 확인 |
+
+> 선택: VS Code를 사용할 경우 **WSL** 확장을 설치하면 Ubuntu 터미널에서 `code .`으로 실습 폴더를 바로 열 수 있음
 
 ## 1.1 프로젝트 디렉터리 생성
 
