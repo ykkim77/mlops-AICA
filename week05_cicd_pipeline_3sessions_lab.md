@@ -10,7 +10,7 @@
 
 # 0. 실습 개요
 
-5주차 실습은 총 2개 차시로 구성합니다.
+5주차 실습: 총 2개 차시(2·3차시)로 구성
 
 ```text
 2차시
@@ -68,11 +68,28 @@ python3 -m venv .venv
 source .venv/bin/activate
 
 python -m pip install --upgrade pip
-pip install "zenml==0.96.4" scikit-learn pandas pytest
+pip install "zenml[local]==0.96.4" scikit-learn pandas pytest
 
 mkdir -p src tests .github/workflows
 touch src/__init__.py
+
+cat > pytest.ini <<'EOF'
+[pytest]
+pythonpath = .
+EOF
+
+cat > .gitignore <<'EOF'
+.venv/
+__pycache__/
+.pytest_cache/
+EOF
 ```
+
+- `zenml[local]`: ZenML 기본 패키지만 설치하면 로컬 DB를 사용할 수 없어 `zenml init`, Pipeline 실행이 실패함 → 로컬 실행용 의존성 포함 설치 필요
+- `pytest.ini`: 프로젝트 루트를 import 경로에 추가 → 없으면 `pytest` 실행 시 `ModuleNotFoundError: No module named 'src'` 발생
+- `.gitignore`: 이 저장소는 GitHub에 Push하므로 `.venv` 업로드 방지가 필수임
+
+> Python 3.12 이하의 `venv`는 자체 `.gitignore`를 만들지 않음 → `git add .` 실행 시 `.venv` 전체가 커밋되므로 반드시 먼저 작성
 
 프로젝트 구조:
 
@@ -87,6 +104,8 @@ mlops-week05/
 │   └── pipeline.py
 ├── tests/
 │   └── test_functions.py
+├── .gitignore
+├── pytest.ini
 ├── requirements.txt
 └── run_pipeline.py
 ```
@@ -115,7 +134,6 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 
-
 def preprocess_data(test_size: float = 0.2, random_state: int = 42):
     iris = load_iris(as_frame=True)
     X = iris.data.copy()
@@ -128,7 +146,6 @@ def preprocess_data(test_size: float = 0.2, random_state: int = 42):
         random_state=random_state,
         stratify=y,
     )
-
 
 def train_model(
     X_train: pd.DataFrame,
@@ -159,7 +176,6 @@ def train_model(
 ```python
 from src.functions import preprocess_data, train_model
 
-
 def test_preprocess_data():
     X_train, X_test, y_train, y_test = preprocess_data()
 
@@ -167,7 +183,6 @@ def test_preprocess_data():
     assert len(X_test) > 0
     assert len(X_train) + len(X_test) == 150
     assert X_train.shape[1] == 4
-
 
 def test_train_model():
     X_train, X_test, y_train, y_test = preprocess_data()
@@ -195,7 +210,7 @@ pytest -v
 ## 4. requirements.txt
 
 ```text
-zenml==0.96.4
+zenml[local]==0.96.4
 scikit-learn
 pandas
 pytest
@@ -256,6 +271,9 @@ PASS / FAIL
 
 ## 6. GitHub 저장소 연결 및 Push
 
+- GitHub에서 빈 Repository 생성 (README, .gitignore 추가 없이 생성 → 첫 Push 충돌 방지)
+- HTTPS Push 시 비밀번호 대신 Personal Access Token 입력 필요 (또는 SSH 키 등록 후 SSH URL 사용)
+
 ```bash
 git remote add origin <자신의-GitHub-Repository-URL>
 
@@ -264,11 +282,11 @@ git commit -m "week05: add CI workflow"
 git push -u origin main
 ```
 
-GitHub Repository의 `Actions` 메뉴에서 Workflow 결과를 확인합니다.
+GitHub Repository의 `Actions` 메뉴에서 Workflow 결과를 확인함
 
 ## 7. 실패하는 CI 체험
 
-테스트 조건을 일부러 잘못 바꿉니다.
+테스트 조건을 일부러 잘못 바꿈
 
 ```python
 assert accuracy >= 1.1
@@ -290,7 +308,7 @@ Run tests
 FAILED
 ```
 
-다시 원래대로 복원합니다.
+다시 원래대로 복원함
 
 ```python
 assert accuracy >= 0.8
@@ -318,7 +336,7 @@ zenml status
 zenml stack list
 ```
 
-이번 실습은 Local Stack을 사용합니다.
+이번 실습은 Local Stack을 사용함
 
 ## 9. ZenML Pipeline 작성
 
@@ -333,7 +351,6 @@ from zenml import pipeline, step
 
 from src.functions import preprocess_data, train_model
 
-
 @step
 def preprocess_step(
     test_size: float = 0.2,
@@ -343,11 +360,13 @@ def preprocess_step(
     Annotated[pd.Series, "y_train"],
     Annotated[pd.Series, "y_test"],
 ]:
-    return preprocess_data(
+    X_train, X_test, y_train, y_test = preprocess_data(
         test_size=test_size,
         random_state=42,
     )
 
+    # return 문에 4개 값을 직접 나열해야 다중 출력으로 인식됨
+    return X_train, X_test, y_train, y_test
 
 @step
 def train_step(
@@ -374,7 +393,6 @@ def train_step(
     print(f"Accuracy: {accuracy:.4f}")
     return model, accuracy
 
-
 @pipeline
 def training_pipeline(
     test_size: float = 0.2,
@@ -396,13 +414,15 @@ def training_pipeline(
     )
 ```
 
+> ZenML은 `return` 문에 여러 값을 직접 나열한 경우에만 Tuple 출력을 여러 Artifact로 분리함  
+> `return preprocess_data(...)`처럼 함수 호출 결과를 그대로 반환하면 단일 Artifact로 처리되어 Pipeline에서 `Unable to unpack step artifact` 오류 발생
+
 ## 10. Pipeline 실행 파일
 
 `run_pipeline.py`
 
 ```python
 from src.pipeline import training_pipeline
-
 
 if __name__ == "__main__":
     training_pipeline(
@@ -428,7 +448,7 @@ train_step
 
 ## 11. GitHub Actions와 ZenML 연결
 
-Workflow를 다음처럼 수정합니다.
+Workflow를 다음처럼 수정함
 
 ```yaml
 name: Week05 MLOps CI Pipeline
@@ -479,7 +499,7 @@ git commit -m "week05: connect GitHub Actions and ZenML"
 git push
 ```
 
-GitHub Actions에서 다음 순서를 확인합니다.
+GitHub Actions에서 다음 순서를 확인함
 
 ```text
 Checkout
@@ -507,7 +527,7 @@ FAIL
 STOP
 ```
 
-따라서 이후의 ZenML Pipeline은 실행되지 않습니다.
+따라서 이후의 ZenML Pipeline은 실행되지 않음
 
 정상일 경우:
 
@@ -581,7 +601,7 @@ Preprocess
 Train
 ```
 
-이번 주에는 코드 변경을 Trigger로 Pipeline을 자동 실행하는 기본 구조를 구성합니다.
+이번 주에는 코드 변경을 Trigger로 Pipeline을 자동 실행하는 기본 구조를 구성함
 
 6주차에서는:
 
@@ -591,13 +611,13 @@ Data Drift
 Retraining Trigger
 ```
 
-를 연결하여 Continuous Training 개념으로 확장합니다.
+를 연결하여 Continuous Training 개념으로 확장함
 
 ---
 
 # 15. 선택 과제
 
-1. `workflow_dispatch`를 추가하여 GitHub UI에서 수동 실행합니다.
-2. `max_depth` 값을 변경한 뒤 Push하여 Pipeline 재실행을 확인합니다.
-3. `evaluate_step`을 추가해 `Preprocess → Train → Evaluate` 구조로 확장합니다.
-4. Accuracy가 기준 미만이면 Pipeline을 실패시키는 Gate를 추가합니다.
+1. `workflow_dispatch`를 추가하여 GitHub UI에서 수동 실행함
+2. `max_depth` 값을 변경한 뒤 Push하여 Pipeline 재실행을 확인함
+3. `evaluate_step`을 추가해 `Preprocess → Train → Evaluate` 구조로 확장함
+4. Accuracy가 기준 미만이면 Pipeline을 실패시키는 Gate를 추가함

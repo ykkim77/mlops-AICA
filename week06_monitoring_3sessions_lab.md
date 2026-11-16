@@ -11,7 +11,7 @@
 
 # 0. 실습 개요
 
-6주차 실습은 총 2개 차시로 구성됩니다.
+6주차 실습: 총 2개 차시(2·3차시)로 구성
 
 ```text
 2차시
@@ -41,7 +41,7 @@ HTML / JSON
 Drift Share 해석
 ```
 
-이번 주의 핵심은 다음과 같습니다.
+이번 주의 핵심은 다음과 같음
 
 ```text
 Monitoring
@@ -57,8 +57,8 @@ Concept Drift
 입력과 정답의 관계 P(Y|X)의 변화
 ```
 
-> Data Drift가 발생했다고 해서 모델 성능이 반드시 저하되었다는 뜻은 아닙니다.  
-> 이번 실습은 **입력 데이터의 분포 변화**를 감지하는 데 초점을 둡니다.
+> Data Drift가 발생했다고 해서 모델 성능이 반드시 저하되었다는 뜻은 아님  
+> 이번 실습은 **입력 데이터의 분포 변화**를 감지하는 데 초점을 둠
 
 ---
 
@@ -77,9 +77,12 @@ python -m pip install --upgrade pip
 pip install \
   "evidently==0.7.23" \
   scikit-learn \
-  pandas \
+  "pandas<3" \
   numpy
 ```
+
+> Evidently 0.7.23은 pandas 3.x에서 `import evidently` 단계부터 실패함 → `pandas<3`으로 고정  
+> (Python 3.10은 pandas 3을 설치하지 않으나 Python 3.11 이상 환경에서는 문제 발생)
 
 설치 확인:
 
@@ -131,11 +134,9 @@ import numpy as np
 import pandas as pd
 from sklearn.datasets import load_iris
 
-
 REFERENCE_PATH = Path("data/reference/reference.csv")
 CURRENT_NORMAL_PATH = Path("data/current/current_normal.csv")
 CURRENT_DRIFT_PATH = Path("data/current/current_drift.csv")
-
 
 def main():
     rng = np.random.default_rng(42)
@@ -198,7 +199,6 @@ def main():
     print(f"- Current Normal: {CURRENT_NORMAL_PATH}")
     print(f"- Current Drift : {CURRENT_DRIFT_PATH}")
 
-
 if __name__ == "__main__":
     main()
 ```
@@ -224,14 +224,12 @@ ls -R data
 ```python
 import pandas as pd
 
-
 FEATURES = [
     "sepal_length",
     "sepal_width",
     "petal_length",
     "petal_width",
 ]
-
 
 reference = pd.read_csv(
     "data/reference/reference.csv"
@@ -245,7 +243,6 @@ drift = pd.read_csv(
     "data/current/current_drift.csv"
 )
 
-
 def print_means(name, df):
     print(f"\n=== {name} ===")
     print(
@@ -253,7 +250,6 @@ def print_means(name, df):
         .mean()
         .round(3)
     )
-
 
 print_means(
     "REFERENCE",
@@ -285,7 +281,7 @@ vs
 Current Normal
 ```
 
-은 평균과 분포가 비슷합니다.
+은 평균과 분포가 비슷함
 
 반면:
 
@@ -295,7 +291,7 @@ vs
 Current Drift
 ```
 
-에서는 일부 Feature의 평균이 크게 달라집니다.
+에서는 일부 Feature의 평균이 크게 달라짐
 
 ---
 
@@ -319,10 +315,8 @@ Reference
 Current
 ```
 
-입니다.
-
 이번 차시에서는 Drift가 없는 데이터와 Drift가 있는 데이터를 직접 만들어  
-**분포 변화가 무엇인지 눈으로 확인**합니다.
+**분포 변화가 무엇인지 눈으로 확인**함
 
 ---
 
@@ -375,14 +369,12 @@ from evidently import (
 )
 from evidently.presets import DataDriftPreset
 
-
 FEATURES = [
     "sepal_length",
     "sepal_width",
     "petal_length",
     "petal_width",
 ]
-
 
 def make_dataset(df):
     definition = DataDefinition(
@@ -393,7 +385,6 @@ def make_dataset(df):
         df[FEATURES],
         data_definition=definition,
     )
-
 
 def main():
     parser = argparse.ArgumentParser()
@@ -498,7 +489,6 @@ def main():
                 value.get("share"),
             )
 
-
 if __name__ == "__main__":
     main()
 ```
@@ -521,6 +511,13 @@ reports/
 └── normal_drift_report.json
 ```
 
+예상 출력:
+
+```text
+Drifted Columns: 0.0
+Drift Share: 0.0
+```
+
 ---
 
 # 8. Drift Current Data 평가
@@ -539,6 +536,16 @@ reports/
 └── drift_report.json
 ```
 
+예상 출력:
+
+```text
+Drifted Columns: 3.0
+Drift Share: 0.75
+```
+
+- `sepal_length`, `petal_length`, `petal_width`: Drift 감지
+- `sepal_width`: 잡음만 추가했으므로 Drift 미감지
+
 ---
 
 # 9. HTML Report 확인
@@ -549,7 +556,7 @@ WSL에서:
 explorer.exe .
 ```
 
-`reports` 폴더에서 다음 파일을 브라우저로 엽니다.
+`reports` 폴더의 다음 파일을 브라우저로 열어 확인
 
 ```text
 normal_drift_report.html
@@ -595,12 +602,17 @@ Drift Share
 drift_share=0.5
 ```
 
-를 사용합니다.
+를 사용함
 
 즉 전체 Feature 중 50% 이상에서 Drift가 발견되면  
-Dataset 수준에서 Drift가 있다고 판단하는 기준으로 사용합니다.
+Dataset 수준에서 Drift가 있다고 판단하는 기준으로 사용함
 
-> 이 값은 교육 실습용 기준이며, 실제 운영에서는 Feature 중요도, 표본 크기, 오탐 비용 등을 고려해 별도의 정책을 설계해야 합니다.
+Feature별 Drift 판정 방식:
+
+- 이번 실습 데이터(150행 수치형)는 Evidently 기본값에 따라 K-S 검정 사용
+- p-value < 0.05이면 해당 Feature를 Drift로 판정
+
+> 이 값은 교육 실습용 기준이며, 실제 운영에서는 Feature 중요도, 표본 크기, 오탐 비용 등을 고려해 별도의 정책을 설계해야 함
 
 ---
 
@@ -634,7 +646,7 @@ Accuracy가 반드시 떨어졌음
 추가 확인이 필요한 Monitoring Signal
 ```
 
-로 해석해야 합니다.
+로 해석해야 함
 
 ---
 
@@ -653,7 +665,7 @@ Drift Report
 ```
 
 Evidently는 Drift를 자동으로 평가하고  
-사람이 해석할 수 있는 Report를 제공합니다.
+사람이 해석할 수 있는 Report를 제공함
 
 이 결과는 이후:
 
@@ -663,7 +675,7 @@ Retraining 검토
 Monitoring 정책
 ```
 
-등의 입력으로 사용할 수 있습니다.
+등의 입력으로 사용할 수 있음
 
 ---
 
@@ -693,21 +705,19 @@ Drift Report
 Drift Share
 ```
 
-이번 주의 핵심은:
+이번 주의 핵심:
 
 ```text
 모델 배포 이후에도
-데이터의 상태를 지속적으로 관찰해야 한다
+데이터의 상태를 지속적으로 관찰해야 함
 ```
-
-입니다.
 
 ---
 
 # 14. 선택 과제
 
-1. `sepal_width`에도 의도적으로 Drift를 추가합니다.
-2. `drift_share` 값을 0.25, 0.5, 0.75로 바꾸어 결과를 비교합니다.
-3. 정상 Report와 Drift Report의 Feature별 분포를 비교합니다.
-4. Drift가 발생한 Feature와 발생하지 않은 Feature를 구분합니다.
-5. “Data Drift가 있어도 재학습하지 않아도 되는 경우”를 한 가지 작성합니다.
+1. `sepal_width`에도 의도적으로 Drift를 추가함
+2. `drift_share` 값을 0.25, 0.5, 0.75로 바꾸어 결과를 비교함
+3. 정상 Report와 Drift Report의 Feature별 분포를 비교함
+4. Drift가 발생한 Feature와 발생하지 않은 Feature를 구분함
+5. “Data Drift가 있어도 재학습하지 않아도 되는 경우”를 한 가지 작성함

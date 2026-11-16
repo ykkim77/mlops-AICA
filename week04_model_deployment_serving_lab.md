@@ -9,9 +9,9 @@
 
 # 0. 실습 개요
 
-이번 주에는 3주차에서 MLflow Model Registry에 등록하고 `champion` Alias를 지정한 Iris Random Forest 모델을 실제 서비스 형태로 발전시킵니다.
+이번 주에는 3주차에서 MLflow Model Registry에 등록하고 `champion` Alias를 지정한 Iris Random Forest 모델을 실제 서비스 형태로 발전시킴
 
-전체 흐름은 다음과 같습니다.
+전체 흐름은 다음과 같음
 
 ```text
 [3주차 결과]
@@ -45,7 +45,7 @@ Nginx Load Balancer
 요청 분산
 ```
 
-이번 주 핵심 질문은 다음과 같습니다.
+이번 주 핵심 질문은 다음과 같음
 
 > **“선택한 모델을 다른 프로그램이 사용할 수 있는 서비스로 어떻게 만들 것인가?”**
 
@@ -55,7 +55,7 @@ Nginx Load Balancer
 
 ## 1.1 3주차 MLflow Tracking Server 실행
 
-3주차 프로젝트에서 MLflow Server를 실행합니다.
+3주차 프로젝트에서 MLflow Server를 실행함
 
 터미널 1:
 
@@ -71,13 +71,13 @@ mlflow server --host 127.0.0.1 --port 5000
 http://127.0.0.1:5000
 ```
 
-MLflow UI의 **Models** 메뉴에서 다음 모델이 존재하는지 확인합니다.
+MLflow UI의 **Models** 메뉴에서 다음 모델이 존재하는지 확인함
 
 ```text
 iris-random-forest
 ```
 
-그리고 `champion` Alias가 특정 Version에 연결되어 있는지 확인합니다.
+`champion` Alias가 특정 Version에 연결되어 있는지 확인함
 
 ---
 
@@ -94,7 +94,9 @@ cd ~/mlops-week04
 
 ## 1.3 Python 가상환경
 
-3주차 환경을 그대로 사용해도 됩니다.
+3주차 환경을 그대로 사용해도 됨
+
+> 새로 만들 경우에도 MLflow 버전을 3주차 Tracking Server와 동일하게 맞춤
 
 새로 만들 경우:
 
@@ -102,14 +104,14 @@ cd ~/mlops-week04
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-pip install mlflow scikit-learn requests
+pip install "mlflow==3.18.0" scikit-learn requests
 ```
 
 ---
 
 ## 1.4 MLflow Tracking URI 설정
 
-CLI가 3주차 Tracking Server와 Model Registry를 바라보도록 설정합니다.
+CLI가 3주차 Tracking Server와 Model Registry를 바라보도록 설정함
 
 ```bash
 export MLFLOW_TRACKING_URI=http://127.0.0.1:5000
@@ -127,13 +129,13 @@ echo $MLFLOW_TRACKING_URI
 http://127.0.0.1:5000
 ```
 
-> 새 터미널을 열면 이 환경변수를 다시 설정해야 합니다.
+> 새 터미널을 열면 이 환경변수를 다시 설정해야 함
 
 ---
 
 ## 1.5 Champion 모델 확인
 
-Python으로 `champion` Alias가 가리키는 모델을 확인합니다.
+Python으로 `champion` Alias가 가리키는 모델을 확인함
 
 ```bash
 python - <<'PY'
@@ -155,7 +157,7 @@ print("Run ID     :", model.run_id)
 PY
 ```
 
-정상적으로 Version과 Run ID가 출력되는지 확인합니다.
+정상적으로 Version과 Run ID가 출력되는지 확인함
 
 ---
 
@@ -173,13 +175,13 @@ PY
 
 # 3. 모델과 모델 서비스의 차이
 
-학습이 끝난 모델은 아직 다른 프로그램이 호출할 수 있는 서비스가 아닙니다.
+학습이 끝난 모델은 아직 다른 프로그램이 호출할 수 있는 서비스가 아님
 
 ```text
 Model File
 ```
 
-을 다음과 같이 바꾸어야 합니다.
+을 다음과 같이 바꾸어야 함
 
 ```text
 Client
@@ -195,7 +197,7 @@ Prediction
 HTTP Response
 ```
 
-이번 차시에서는 MLflow가 제공하는 Model Server를 사용합니다.
+이번 차시에서는 MLflow가 제공하는 Model Server를 사용함
 
 ---
 
@@ -215,7 +217,7 @@ Alias:
 champion
 ```
 
-따라서 모델 URI는 다음과 같습니다.
+따라서 모델 URI는 다음과 같음
 
 ```text
 models:/iris-random-forest@champion
@@ -240,21 +242,21 @@ mlflow models serve \
   --env-manager local
 ```
 
-> `5000` 포트는 Tracking Server가 사용 중이므로 Model Serving은 `5001`을 사용합니다.
+> `5000` 포트는 Tracking Server가 사용 중이므로 Model Serving은 `5001`을 사용함
 
-정상적으로 시작되면 Model Server가 다음 주소에서 동작합니다.
+정상적으로 시작되면 Model Server가 다음 주소에서 동작함
 
 ```text
 http://127.0.0.1:5001
 ```
 
-이 터미널은 서버 실행용으로 그대로 둡니다.
+이 터미널은 서버 실행용으로 그대로 둠
 
 ---
 
 # 5. 서버 상태 확인
 
-새 터미널 3을 열고 다음 명령을 실행합니다.
+새 터미널 3을 열고 다음 명령을 실행함
 
 ```bash
 curl http://127.0.0.1:5001/ping
@@ -276,7 +278,7 @@ curl http://127.0.0.1:5001/version
 
 # 6. REST API로 예측 요청
 
-Iris 데이터의 입력 특성은 4개입니다.
+Iris 데이터의 입력 특성은 4개임
 
 ```text
 sepal length
@@ -304,7 +306,7 @@ curl -X POST \
       }'
 ```
 
-예측 결과가 JSON으로 반환되는지 확인합니다.
+예측 결과가 JSON으로 반환되는지 확인함
 
 ---
 
@@ -323,7 +325,7 @@ curl -X POST \
       }'
 ```
 
-하나의 요청으로 여러 건의 추론을 수행할 수 있습니다.
+하나의 요청으로 여러 건의 추론을 수행할 수 있음
 
 ---
 
@@ -383,9 +385,9 @@ Prediction
 Client
 ```
 
-모델을 호출하는 프로그램은 모델의 내부 구현을 알 필요가 없습니다.
+모델을 호출하는 프로그램은 모델의 내부 구현을 알 필요가 없음
 
-클라이언트가 알아야 하는 것은:
+클라이언트가 알아야 할 항목:
 
 ```text
 URL
@@ -393,8 +395,6 @@ HTTP Method
 Input Format
 Output Format
 ```
-
-입니다.
 
 ---
 
@@ -410,7 +410,7 @@ Model
 Model Serving
 ```
 
-은 그 모델을 다른 시스템이 호출할 수 있도록 실행하는 것입니다.
+은 그 모델을 다른 시스템이 호출할 수 있도록 실행하는 것임
 
 이번 실습에서는:
 
@@ -424,7 +424,7 @@ mlflow models serve
 REST API
 ```
 
-를 구성했습니다.
+를 구성했음
 
 ---
 
@@ -442,7 +442,7 @@ REST API
 
 # 12. Docker 동작 확인
 
-Docker Desktop이 실행되어 있어야 합니다.
+Docker Desktop이 실행되어 있어야 함
 
 확인:
 
@@ -456,7 +456,7 @@ docker version
 docker run --rm hello-world
 ```
 
-정상 출력이 나타나는지 확인합니다.
+정상 출력이 나타나는지 확인함
 
 ---
 
@@ -472,7 +472,7 @@ docker run --rm hello-world
  └─ Model Server
 ```
 
-다른 컴퓨터에서 실행하려면 동일한 환경을 다시 맞춰야 합니다.
+다른 컴퓨터에서 실행하려면 동일한 환경을 다시 맞춰야 함
 
 Docker를 사용하면:
 
@@ -485,13 +485,13 @@ Docker Image
  └─ Model
 ```
 
-을 하나의 실행 가능한 패키지로 만들 수 있습니다.
+을 하나의 실행 가능한 패키지로 만들 수 있음
 
 ---
 
 # 14. MLflow 모델 Docker Image 빌드
 
-3주차 Model Registry의 `champion` 모델을 이미지로 만듭니다.
+3주차 Model Registry의 `champion` 모델을 이미지로 만듦
 
 ```bash
 cd ~/mlops-week04
@@ -503,7 +503,7 @@ mlflow models build-docker \
   --name week04-iris-model
 ```
 
-빌드에는 시간이 걸릴 수 있습니다.
+빌드에는 시간이 걸릴 수 있음
 
 ---
 
@@ -513,7 +513,7 @@ mlflow models build-docker \
 docker images
 ```
 
-다음 이미지가 나타나는지 확인합니다.
+다음 이미지가 나타나는지 확인함
 
 ```text
 week04-iris-model
@@ -529,7 +529,7 @@ docker image inspect week04-iris-model
 
 # 16. Docker Container 실행
 
-MLflow가 생성한 이미지의 Model Server는 컨테이너 내부 `8080` 포트를 사용합니다.
+MLflow가 생성한 이미지의 Model Server는 컨테이너 내부 `8080` 포트를 사용함
 
 실행:
 
@@ -552,7 +552,7 @@ localhost:5002   →      8080
                     Champion Model
 ```
 
-이 터미널은 컨테이너 실행용으로 그대로 둡니다.
+이 터미널은 컨테이너 실행용으로 그대로 둠
 
 ---
 
@@ -577,7 +577,7 @@ curl -X POST \
       }'
 ```
 
-2차시의 결과와 동일한 형태의 예측이 반환되는지 확인합니다.
+2차시의 결과와 동일한 형태의 예측이 반환되는지 확인함
 
 ---
 
@@ -668,7 +668,7 @@ Runtime
 Dependencies
 ```
 
-를 하나의 배포 단위로 만들 수 있습니다.
+를 하나의 배포 단위로 만들 수 있음
 
 ---
 
@@ -682,8 +682,8 @@ Dependencies
 - 요청이 여러 모델 인스턴스로 분산되는 것을 확인함
 - Scale-out과 Load Balancing의 기본 원리를 이해함
 
-> 이번 실습은 **자동 확장(Auto Scaling)** 실습이 아닙니다.  
-> 동일한 컨테이너를 여러 개 미리 실행하고 요청을 분산하는 **수평 확장(Scale-out)과 Load Balancing의 기본 구조**를 실습합니다.
+> 이번 실습은 **자동 확장(Auto Scaling)** 실습이 아님  
+> 동일한 컨테이너를 여러 개 미리 실행하고 요청을 분산하는 **수평 확장(Scale-out)과 Load Balancing의 기본 구조**를 실습함
 
 ---
 
@@ -820,7 +820,7 @@ docker compose up -d
 docker compose ps
 ```
 
-다음 4개 서비스가 실행되어야 합니다.
+다음 4개 서비스가 실행되어야 함
 
 ```text
 model1
@@ -833,7 +833,7 @@ nginx
 
 # 27. Nginx를 통해 예측 요청
 
-이제 사용자는 개별 모델 서버의 주소를 알 필요가 없습니다.
+이제 사용자는 개별 모델 서버의 주소를 알 필요가 없음
 
 요청 주소:
 
@@ -854,19 +854,19 @@ curl -i -X POST \
       }'
 ```
 
-HTTP Header에서 다음 값을 확인합니다.
+HTTP Header에서 다음 값을 확인함
 
 ```text
 X-Upstream-Addr:
 ```
 
-이 값은 실제 요청을 처리한 모델 컨테이너의 주소입니다.
+이 값은 실제 요청을 처리한 모델 컨테이너의 주소임
 
 ---
 
 # 28. 여러 번 요청하여 부하분산 확인
 
-다음 명령을 여러 번 실행합니다.
+다음 명령을 여러 번 실행함
 
 ```bash
 for i in {1..9}
@@ -888,9 +888,9 @@ do
 done
 ```
 
-요청을 처리한 Backend 주소가 바뀌는지 확인합니다.
+요청을 처리한 Backend 주소가 바뀌는지 확인함
 
-Nginx의 기본 Round Robin 방식으로 여러 Backend에 요청이 분산됩니다.
+Nginx의 기본 Round Robin 방식으로 여러 Backend에 요청이 분산됨
 
 ---
 
@@ -923,7 +923,7 @@ Prediction은 동일
 X-Upstream-Addr는 달라질 수 있음
 ```
 
-즉 동일한 Docker Image를 사용하므로 각 인스턴스의 모델은 동일하지만, 요청은 서로 다른 인스턴스가 처리합니다.
+즉 동일한 Docker Image를 사용하므로 각 인스턴스의 모델은 동일하지만, 요청은 서로 다른 인스턴스가 처리함
 
 ---
 
@@ -963,7 +963,7 @@ Ctrl + C
 
 # 31. 하나의 Model Instance 중지
 
-고가용성 개념을 간단히 확인합니다.
+고가용성 개념을 간단히 확인함
 
 ```bash
 docker compose stop model2
@@ -988,9 +988,10 @@ curl -i -X POST \
       }'
 ```
 
-나머지 인스턴스에서 응답하는지 확인합니다.
+나머지 인스턴스에서 응답하는지 확인함
 
-> Nginx는 실패한 Backend를 일시적으로 제외하고 나머지 Backend로 요청을 전달할 수 있습니다. 이 실습은 고가용성의 기본 개념을 체감하기 위한 간단한 예입니다.
+> Nginx는 실패한 Backend를 일시적으로 제외하고 나머지 Backend로 요청을 전달할 수 있음  
+> 이 실습은 고가용성의 기본 개념을 체감하기 위한 간단한 예시임
 
 중지했던 인스턴스 다시 실행:
 
@@ -1031,7 +1032,7 @@ Scale-out
 Load Balancing
 ```
 
-을 직접 구현한 것입니다.
+을 직접 구현한 것임
 
 ---
 
@@ -1045,14 +1046,12 @@ Client → Nginx ─┼→ Model 2
                 └→ Model 3
 ```
 
-Nginx는:
+Nginx의 역할:
 
 - 사용자의 단일 진입점 제공
 - 여러 Backend에 요청 분산
 - 개별 Backend 주소 숨김
 - 장애 인스턴스에 대한 기본적인 우회 가능
-
-역할을 수행합니다.
 
 ---
 
@@ -1066,7 +1065,7 @@ Docker Container × 3
 Nginx
 ```
 
-Kubernetes 환경에서는 유사한 문제를 다음 구성요소가 담당합니다.
+Kubernetes 환경에서는 유사한 문제를 다음 구성요소가 담당함
 
 ```text
 Docker Container 개념
@@ -1090,9 +1089,9 @@ Service
 Ingress / Gateway
 ```
 
-이번 실습에서는 컨테이너 수를 사람이 직접 정했습니다.
+이번 실습에서는 컨테이너 수를 사람이 직접 정했음
 
-Kubernetes의 HPA 같은 기능을 사용하면 CPU 등의 지표를 기반으로 Replica 수를 자동으로 증감할 수 있습니다.
+Kubernetes의 HPA 같은 기능을 사용하면 CPU 등의 지표를 기반으로 Replica 수를 자동으로 증감할 수 있음
 
 즉:
 
@@ -1120,7 +1119,7 @@ docker compose down
 docker ps
 ```
 
-Docker Image는 그대로 남아 있습니다.
+Docker Image는 그대로 남아 있음
 
 ```bash
 docker images
@@ -1163,7 +1162,7 @@ Load Balancing
 
 ## 1. Model Serving
 
-학습된 모델을 다른 시스템이 호출할 수 있는 서비스로 실행합니다.
+학습된 모델을 다른 시스템이 호출할 수 있는 서비스로 실행함
 
 ```text
 Model
@@ -1177,7 +1176,7 @@ API
 
 ## 2. REST API
 
-클라이언트와 모델 서버가 HTTP를 통해 요청과 응답을 주고받습니다.
+클라이언트와 모델 서버가 HTTP를 통해 요청과 응답을 주고받음
 
 ```text
 POST /invocations
@@ -1199,7 +1198,7 @@ Prediction
 
 ## 3. Containerization
 
-모델과 실행 환경을 Docker Image로 패키징합니다.
+모델과 실행 환경을 Docker Image로 패키징함
 
 ```text
 Model
@@ -1215,7 +1214,7 @@ Docker Image
 
 ## 4. Instance
 
-동일한 Docker Image로 여러 Container를 실행할 수 있습니다.
+동일한 Docker Image로 여러 Container를 실행할 수 있음
 
 ```text
 Image
@@ -1228,7 +1227,7 @@ Image
 
 ## 5. Load Balancing
 
-사용자의 요청을 여러 Model Instance에 분산합니다.
+사용자의 요청을 여러 Model Instance에 분산함
 
 ```text
 Client
@@ -1242,7 +1241,7 @@ Model Instances
 
 ## 6. Scale-out
 
-서버 한 대를 크게 만드는 것이 아니라 동일한 서비스 인스턴스의 수를 늘립니다.
+서버 한 대를 크게 만드는 것이 아니라 동일한 서비스 인스턴스의 수를 늘림
 
 ```text
 1 Instance
@@ -1284,7 +1283,7 @@ Load Balancing
 
 # 39. 다음 주차 연결
 
-5주차에서는 지금까지 사람이 직접 실행하던 과정을 자동화합니다.
+5주차에서는 지금까지 사람이 직접 실행하던 과정을 자동화함
 
 현재:
 
@@ -1324,16 +1323,16 @@ Train
 Evaluate
 ```
 
-과정을 하나의 ML Pipeline으로 연결합니다.
+과정을 하나의 ML Pipeline으로 연결함
 
 ---
 
 # 40. 선택 과제
 
-1. `model1`, `model2`, `model3` 중 하나를 중지한 뒤 요청이 계속 처리되는지 확인합니다.
-2. 모델 인스턴스를 2개만 사용하도록 `nginx.conf`와 `compose.yaml`을 수정합니다.
-3. 모델 인스턴스를 4개로 늘려봅니다.
-4. 서로 다른 Iris 입력값을 10번 이상 전송합니다.
-5. Nginx의 `X-Upstream-Addr` Header를 이용하여 어느 Backend가 요청을 처리했는지 기록합니다.
-6. Scale-up과 Scale-out의 차이를 자신의 말로 설명합니다.
-7. Docker Compose에서 구현한 구조가 Kubernetes의 Pod / Deployment / Service 중 무엇에 대응되는지 정리합니다.
+1. `model1`, `model2`, `model3` 중 하나를 중지한 뒤 요청이 계속 처리되는지 확인함
+2. 모델 인스턴스를 2개만 사용하도록 `nginx.conf`와 `compose.yaml`을 수정함
+3. 모델 인스턴스를 4개로 늘려봄
+4. 서로 다른 Iris 입력값을 10번 이상 전송함
+5. Nginx의 `X-Upstream-Addr` Header를 이용하여 어느 Backend가 요청을 처리했는지 기록함
+6. Scale-up과 Scale-out의 차이를 자신의 말로 설명함
+7. Docker Compose에서 구현한 구조가 Kubernetes의 Pod / Deployment / Service 중 무엇에 대응되는지 정리함

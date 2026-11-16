@@ -9,7 +9,7 @@
 
 # 0. 실습 개요
 
-이번 주 실습에서는 **하나의 Iris 분류 프로젝트를 2~4차시 동안 계속 발전**시킵니다.
+이번 주 실습에서는 **하나의 Iris 분류 프로젝트를 2~4차시 동안 계속 발전**시킴
 
 ```text
 [2차시]
@@ -38,7 +38,7 @@ Alias / Tag 관리
 Candidate → Champion
 ```
 
-이번 주의 핵심 질문은 다음과 같습니다.
+이번 주의 핵심 질문은 다음과 같음
 
 > **“어떤 설정으로 어떤 모델을 만들었고, 어떤 모델을 사용할 것인가?”**
 
@@ -70,8 +70,10 @@ source .venv/bin/activate
 
 ```bash
 python -m pip install --upgrade pip
-pip install mlflow scikit-learn pandas matplotlib
+pip install "mlflow==3.18.0" scikit-learn pandas matplotlib
 ```
+
+> 실습 검증 기준 버전: MLflow 3.18.0 — 버전을 고정하지 않으면 학생마다 다른 버전이 설치되어 동작이 달라질 수 있음
 
 설치 확인:
 
@@ -86,11 +88,27 @@ mlflow --version
 mkdir -p src artifacts
 ```
 
+## 1.6 `.gitignore` 작성
+
+```bash
+cat > .gitignore <<'EOF'
+.venv/
+__pycache__/
+mlflow.db
+mlartifacts/
+mlruns/
+artifacts/
+EOF
+```
+
+> Python 3.12 이하의 `venv`는 자체 `.gitignore`를 만들지 않음 → `git add .` 실행 시 `.venv` 전체가 커밋되므로 반드시 먼저 작성
+> `mlflow.db`, `mlartifacts/`는 MLflow 서버가 생성하는 실행 기록 저장소이므로 Git 관리 대상에서 제외
+
 ---
 
 # 2. MLflow Tracking Server 실행
 
-실습에서는 학생 PC에서 로컬 MLflow 서버를 실행합니다.
+실습에서는 학생 PC에서 로컬 MLflow 서버를 실행함
 
 ## 2.1 터미널 1에서 MLflow Server 실행
 
@@ -102,13 +120,13 @@ source .venv/bin/activate
 mlflow server --host 127.0.0.1 --port 5000
 ```
 
-정상적으로 실행되면 브라우저에서 다음 주소를 엽니다.
+정상 실행 시 브라우저에서 다음 주소 접속
 
 ```text
 http://127.0.0.1:5000
 ```
 
-> 이 터미널은 MLflow 서버 실행용이므로 그대로 둡니다.
+> 이 터미널은 MLflow 서버 실행용이므로 그대로 둠
 
 ## 2.2 터미널 2 열기
 
@@ -119,7 +137,7 @@ cd ~/mlops-week03
 source .venv/bin/activate
 ```
 
-이후 실습 명령은 터미널 2에서 수행합니다.
+이후 실습 명령은 터미널 2에서 수행함
 
 ---
 
@@ -137,7 +155,7 @@ source .venv/bin/activate
 
 # 4. 첫 번째 학습 프로그램 작성
 
-`src/train.py` 파일을 생성합니다.
+`src/train.py` 파일을 생성함
 
 ```bash
 cat > src/train.py <<'PY'
@@ -153,7 +171,6 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, ConfusionMatrixDisplay
 from sklearn.model_selection import train_test_split
 
-
 def parse_args():
     parser = argparse.ArgumentParser()
 
@@ -163,7 +180,6 @@ def parse_args():
     parser.add_argument("--random_state", type=int, default=42)
 
     return parser.parse_args()
-
 
 def main():
     args = parse_args()
@@ -260,9 +276,13 @@ def main():
         # -----------------------------------------------------
         # 7. 모델 자체도 MLflow Artifact로 기록
         # -----------------------------------------------------
+        # MLflow 3.x: artifact_path 대신 name 사용
+        # 최신 MLflow는 sklearn 모델을 기본적으로 skops 형식으로 저장하며,
+        # RandomForest는 이 형식에서 저장 오류가 발생하므로 cloudpickle 지정
         mlflow.sklearn.log_model(
             sk_model=model,
-            artifact_path="model",
+            name="model",
+            serialization_format="cloudpickle",
             input_example=X_test[:3],
         )
 
@@ -272,7 +292,6 @@ def main():
         print(f"max_depth    : {args.max_depth}")
         print(f"accuracy     : {accuracy:.4f}")
         print("======================================")
-
 
 if __name__ == "__main__":
     main()
@@ -289,7 +308,9 @@ python src/train.py \
   --max_depth 2
 ```
 
-브라우저의 MLflow UI에서 다음 Experiment를 확인합니다.
+> 실행 시 `pickle or cloudpickle format requires exercising caution` 경고가 출력됨 — 신뢰할 수 없는 모델 파일을 불러올 때의 보안 주의 문구이며 실습 진행에는 문제 없음
+
+브라우저의 MLflow UI에서 다음 Experiment를 확인함
 
 ```text
 week03-iris
@@ -349,7 +370,7 @@ python src/train.py \
 http://127.0.0.1:5000
 ```
 
-다음 순서로 확인합니다.
+다음 순서로 확인함
 
 1. `week03-iris` Experiment 선택
 2. 여러 Run 선택
@@ -359,7 +380,7 @@ http://127.0.0.1:5000
 
 ### 생각해보기
 
-정확도가 가장 높은 Run이 항상 가장 좋은 모델일까요?
+정확도가 가장 높은 Run이 항상 가장 좋은 모델인가?
 
 고려해야 할 요소:
 
@@ -387,7 +408,7 @@ http://127.0.0.1:5000
 
 # 9. 선택 실습 — Autologging 확인
 
-MLflow는 일부 ML 프레임워크에서 자동 기록 기능을 제공합니다.
+MLflow는 일부 ML 프레임워크에서 자동 기록 기능을 제공함
 
 `src/train_autolog.py` 생성:
 
@@ -399,7 +420,6 @@ import mlflow.sklearn
 from sklearn.datasets import load_iris
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-
 
 mlflow.set_tracking_uri("http://127.0.0.1:5000")
 mlflow.set_experiment("week03-autolog")
@@ -435,7 +455,7 @@ PY
 python src/train_autolog.py
 ```
 
-MLflow UI에서 수동 기록 방식과 Autologging 방식의 차이를 확인합니다.
+MLflow UI에서 수동 기록 방식과 Autologging 방식의 차이를 확인함
 
 ---
 
@@ -470,7 +490,7 @@ mlops-week03/
 
 ```bash
 cat > requirements.txt <<'EOF'
-mlflow
+mlflow==3.18.0
 scikit-learn
 pandas
 matplotlib
@@ -481,7 +501,7 @@ EOF
 
 # 13. MLproject 파일 작성
 
-프로젝트 루트에 `MLproject` 파일을 생성합니다.
+프로젝트 루트에 `MLproject` 파일을 생성함
 
 ```bash
 cat > MLproject <<'YAML'
@@ -508,25 +528,32 @@ YAML
 
 # 14. MLflow Project 실행
 
-현재 Python 환경을 그대로 사용하여 실행합니다.
+현재 Python 환경을 그대로 사용하여 실행함
 
 ```bash
+export MLFLOW_TRACKING_URI=http://127.0.0.1:5000
+
 mlflow run . \
   --env-manager local \
+  --experiment-name week03-iris \
   -P n_estimators=50 \
   -P max_depth=3
 ```
+
+> `mlflow run`은 `train.py`보다 먼저 Run을 생성함 → Tracking URI와 Experiment를 `train.py`와 동일하게 지정해야 함  
+> 지정하지 않으면 `active experiment ID does not match environment run ID` 오류로 실패
 
 다른 파라미터로 다시 실행:
 
 ```bash
 mlflow run . \
   --env-manager local \
+  --experiment-name week03-iris \
   -P n_estimators=100 \
   -P max_depth=5
 ```
 
-MLflow UI에서 새로운 Run이 추가되는 것을 확인합니다.
+MLflow UI에서 새로운 Run이 추가되는 것을 확인함
 
 ---
 
@@ -545,6 +572,7 @@ MLflow Project 실행:
 ```bash
 mlflow run . \
   --env-manager local \
+  --experiment-name week03-iris \
   -P n_estimators=100 \
   -P max_depth=5
 ```
@@ -578,13 +606,13 @@ git commit -m "week03: mlflow tracking and project"
 git log --oneline
 ```
 
-MLflow Project는 로컬 디렉터리뿐 아니라 Git 저장소를 실행 단위로 사용할 수도 있습니다.
+MLflow Project는 로컬 디렉터리뿐 아니라 Git 저장소를 실행 단위로 사용할 수도 있음
 
 ---
 
 # 17. 재현 가능한 실행의 의미
 
-재현 가능한 모델 학습은 단순히 모델 파일을 저장하는 것이 아닙니다.
+재현 가능한 모델 학습은 단순히 모델 파일을 저장하는 것이 아님
 
 ```text
 Code
@@ -608,9 +636,9 @@ Parameter
 실행 방법
 ```
 
-을 `MLproject`로 표준화합니다.
+을 `MLproject`로 표준화함
 
-> 데이터 버전은 2주차 DVC에서 다룬 개념과 연결됩니다.
+> 데이터 버전은 2주차 DVC에서 다룬 개념과 연결됨
 
 ---
 
@@ -642,9 +670,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 
-
 MODEL_NAME = "iris-random-forest"
-
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -652,7 +678,6 @@ def parse_args():
     parser.add_argument("--max_depth", type=int, default=5)
     parser.add_argument("--random_state", type=int, default=42)
     return parser.parse_args()
-
 
 def main():
     args = parse_args()
@@ -691,7 +716,8 @@ def main():
         # 모델을 기록하면서 Registry에 등록
         model_info = mlflow.sklearn.log_model(
             sk_model=model,
-            artifact_path="model",
+            name="model",
+            serialization_format="cloudpickle",
             registered_model_name=MODEL_NAME,
             input_example=X_test[:3],
         )
@@ -702,7 +728,6 @@ def main():
         print(f"Model Name  : {MODEL_NAME}")
         print(f"Model URI   : {model_info.model_uri}")
         print("======================================")
-
 
 if __name__ == "__main__":
     main()
@@ -726,7 +751,7 @@ Models
 → iris-random-forest
 ```
 
-를 선택합니다.
+를 선택함
 
 확인:
 
@@ -738,7 +763,7 @@ Version 1
 
 # 21. Model Version 2 생성
 
-다른 설정으로 다시 학습합니다.
+다른 설정으로 다시 학습함
 
 ```bash
 python src/train_register.py \
@@ -746,7 +771,7 @@ python src/train_register.py \
   --max_depth 6
 ```
 
-MLflow UI에서 다시 확인합니다.
+MLflow UI에서 다시 확인함
 
 ```text
 iris-random-forest
@@ -755,13 +780,13 @@ Version 1
 Version 2
 ```
 
-동일한 Registered Model에 새로운 모델을 등록하면 Version이 증가합니다.
+동일한 Registered Model에 새로운 모델을 등록하면 Version이 증가함
 
 ---
 
 # 22. Version별 성능 비교
 
-MLflow UI에서 각 Model Version이 생성된 Run으로 이동하여 Accuracy를 확인합니다.
+MLflow UI에서 각 Model Version이 생성된 Run으로 이동하여 Accuracy를 확인함
 
 예:
 
@@ -775,15 +800,15 @@ Version 2
   └─ accuracy = ...
 ```
 
-> Model Version 자체뿐 아니라 어떤 Run에서 생성되었는지 추적할 수 있는 것이 중요합니다.
+> Model Version 자체뿐 아니라 어떤 Run에서 생성되었는지 추적할 수 있는 것이 중요함
 
 ---
 
 # 23. Alias 설정
 
-최신 MLflow에서는 모델의 배포 역할을 표현할 때 **Alias**를 사용할 수 있습니다.
+최신 MLflow에서는 모델의 배포 역할을 표현할 때 **Alias**를 사용할 수 있음
 
-이번 실습에서는 다음 Alias를 사용합니다.
+이번 실습에서는 다음 Alias를 사용함
 
 ```text
 candidate
@@ -808,16 +833,13 @@ import argparse
 import mlflow
 from mlflow import MlflowClient
 
-
 MODEL_NAME = "iris-random-forest"
-
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--version", required=True)
     parser.add_argument("--alias", required=True)
     return parser.parse_args()
-
 
 def main():
     args = parse_args()
@@ -837,7 +859,6 @@ def main():
         f"→ alias '{args.alias}' 지정 완료"
     )
 
-
 if __name__ == "__main__":
     main()
 PY
@@ -851,13 +872,13 @@ python src/set_alias.py \
   --alias candidate
 ```
 
-MLflow UI에서 Alias가 표시되는지 확인합니다.
+MLflow UI에서 Alias가 표시되는지 확인함
 
 ---
 
 # 25. Champion 지정
 
-성능을 비교한 뒤 사용할 모델을 선택합니다.
+성능을 비교한 뒤 사용할 모델을 선택함
 
 예를 들어 Version 2를 대표 모델로 선택한다면:
 
@@ -879,13 +900,13 @@ Version 2
  └─ champion
 ```
 
-Alias는 나중에 다른 Version으로 옮길 수 있습니다.
+Alias는 나중에 다른 Version으로 옮길 수 있음
 
 ---
 
 # 26. Tag 설정
 
-Tag는 모델 버전에 추가적인 상태 정보를 기록할 때 사용할 수 있습니다.
+Tag는 모델 버전에 추가적인 상태 정보를 기록할 때 사용할 수 있음
 
 `src/set_tag.py` 생성:
 
@@ -896,9 +917,7 @@ import argparse
 import mlflow
 from mlflow import MlflowClient
 
-
 MODEL_NAME = "iris-random-forest"
-
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -906,7 +925,6 @@ def parse_args():
     parser.add_argument("--key", required=True)
     parser.add_argument("--value", required=True)
     return parser.parse_args()
-
 
 def main():
     args = parse_args()
@@ -927,7 +945,6 @@ def main():
         f"{args.key}={args.value}"
     )
 
-
 if __name__ == "__main__":
     main()
 PY
@@ -946,7 +963,7 @@ python src/set_tag.py \
 
 # 27. Alias로 모델 불러오기
 
-`champion` Alias가 붙은 모델을 코드에서 직접 참조할 수 있습니다.
+`champion` Alias가 붙은 모델을 코드에서 직접 참조할 수 있음
 
 `src/load_champion.py` 생성:
 
@@ -956,7 +973,6 @@ import mlflow
 import mlflow.pyfunc
 
 from sklearn.datasets import load_iris
-
 
 mlflow.set_tracking_uri("http://127.0.0.1:5000")
 
@@ -979,7 +995,7 @@ PY
 python src/load_champion.py
 ```
 
-중요한 점은 코드가 특정 Version 번호를 직접 사용하지 않는다는 것입니다.
+중요한 점은 코드가 특정 Version 번호를 직접 사용하지 않는다는 것임
 
 ```text
 models:/iris-random-forest/2
@@ -991,15 +1007,15 @@ models:/iris-random-forest/2
 models:/iris-random-forest@champion
 ```
 
-을 사용합니다.
+을 사용함
 
-따라서 나중에 champion Alias를 Version 3으로 변경해도 호출 코드 자체는 바꿀 필요가 없습니다.
+따라서 나중에 champion Alias를 Version 3으로 변경해도 호출 코드 자체는 바꿀 필요가 없음
 
 ---
 
 # 28. Stage와 Alias
 
-과거 MLflow에서는 다음과 같은 고정 Stage를 사용했습니다.
+과거 MLflow에서는 다음과 같은 고정 Stage를 사용했음
 
 ```text
 None
@@ -1011,7 +1027,7 @@ Production
 Archived
 ```
 
-현재 MLflow에서는 고정 Stage보다 **Alias와 Tag를 이용한 유연한 상태 관리 방식**을 사용합니다.
+현재 MLflow에서는 고정 Stage보다 **Alias와 Tag를 이용한 유연한 상태 관리 방식**을 사용함
 
 이번 실습에서는:
 
@@ -1025,9 +1041,9 @@ champion
 현재 사용할 대표 모델
 ```
 
-을 사용했습니다.
+을 사용했음
 
-개념적으로는 다음과 같이 연결해서 이해할 수 있습니다.
+개념적으로는 다음과 같이 연결해서 이해할 수 있음
 
 ```text
 전통적 개념              이번 실습
@@ -1036,7 +1052,7 @@ Staging          →       candidate
 Production       →       champion
 ```
 
-단, Alias는 고정된 Stage가 아니라 사용자가 정의할 수 있는 이름입니다.
+단, Alias는 고정된 Stage가 아니라 사용자가 정의할 수 있는 이름임
 
 ---
 
@@ -1064,7 +1080,7 @@ mlops-week03/
     └── load_champion.py
 ```
 
-환경에 따라 MLflow가 생성하는 저장 디렉터리 이름은 다를 수 있습니다.
+환경에 따라 MLflow가 생성하는 저장 디렉터리 이름은 다를 수 있음
 
 ---
 
@@ -1114,7 +1130,7 @@ Experiment
 ```
 
 Experiment는 여러 Run을 묶는 그룹이고,  
-Run은 한 번의 모델 학습 실행입니다.
+Run은 한 번의 모델 학습 실행임
 
 ---
 
@@ -1154,7 +1170,7 @@ JSON
 CSV
 ```
 
-등을 의미합니다.
+등을 의미함
 
 ---
 
@@ -1170,7 +1186,7 @@ Parameter
 Environment 정의
 ```
 
-를 하나의 재현 가능한 프로젝트 단위로 구성합니다.
+를 하나의 재현 가능한 프로젝트 단위로 구성함
 
 ---
 
@@ -1184,13 +1200,13 @@ Registered Model
    └─ Version 3
 ```
 
-학습된 여러 모델 버전을 중앙에서 관리합니다.
+학습된 여러 모델 버전을 중앙에서 관리함
 
 ---
 
 ## 6. Alias
 
-모델 Version에 사람이 이해하기 쉬운 역할 이름을 부여합니다.
+모델 Version에 사람이 이해하기 쉬운 역할 이름을 부여함
 
 ```text
 Version 2
@@ -1204,7 +1220,7 @@ champion
 models:/iris-random-forest@champion
 ```
 
-과 같이 특정 Version 번호가 아니라 Alias를 참조할 수 있습니다.
+과 같이 특정 Version 번호가 아니라 Alias를 참조할 수 있음
 
 ---
 
@@ -1218,7 +1234,6 @@ models:/iris-random-forest@champion
 DVC
         ↓
 Data Version
-
 
 3주차
 
@@ -1239,7 +1254,7 @@ Version / Alias
 
 # 33. 다음 주차 연결
 
-4주차에서는 이번 주에 Registry에 등록한 모델을 실제 서비스로 연결합니다.
+4주차에서는 이번 주에 Registry에 등록한 모델을 실제 서비스로 연결함
 
 ```text
 Model Registry
@@ -1269,16 +1284,16 @@ Load Balancing
 선택한 모델을 서비스로 배포
 ```
 
-로 이어집니다.
+로 이어짐
 
 ---
 
 # 34. 선택 과제
 
-1. `n_estimators`, `max_depth` 값을 바꾸어 5개 이상의 Run을 생성합니다.
-2. MLflow UI에서 Accuracy 기준으로 Run을 비교합니다.
-3. 가장 성능이 좋은 Run과 가장 단순한 모델의 차이를 설명합니다.
-4. Model Version을 하나 더 생성하여 Version 3까지 만듭니다.
-5. `candidate` Alias를 Version 3으로 옮깁니다.
-6. 검증 후 `champion` Alias도 Version 3으로 변경합니다.
-7. `load_champion.py`를 다시 실행하여 코드 변경 없이 새로운 Champion 모델이 로드되는지 확인합니다.
+1. `n_estimators`, `max_depth` 값을 바꾸어 5개 이상의 Run을 생성함
+2. MLflow UI에서 Accuracy 기준으로 Run을 비교함
+3. 가장 성능이 좋은 Run과 가장 단순한 모델의 차이를 설명함
+4. Model Version을 하나 더 생성하여 Version 3까지 만듦
+5. `candidate` Alias를 Version 3으로 옮김
+6. 검증 후 `champion` Alias도 Version 3으로 변경함
+7. `load_champion.py`를 다시 실행하여 코드 변경 없이 새로운 Champion 모델이 로드되는지 확인함

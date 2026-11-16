@@ -9,9 +9,9 @@
 
 ## 0. 실습 목표
 
-이번 주 실습에서는 하나의 작은 데이터셋을 2~4차시 동안 계속 사용합니다.
+이번 주 실습: 하나의 작은 데이터셋을 2~4차시 동안 계속 사용
 
-실습이 끝나면 다음 흐름을 직접 수행할 수 있습니다.
+실습 후 직접 수행할 흐름:
 
 ```text
 원본 데이터
@@ -25,7 +25,7 @@ DVC 버전관리
 데이터 품질 검증
 ```
 
-핵심 목표는 단순히 Pandas 문법을 익히는 것이 아닙니다.
+핵심 목표: Pandas 문법 학습을 넘어 다음 작업 수행
 
 - 원본 데이터와 가공 데이터를 구분함
 - 같은 전처리를 반복 실행할 수 있도록 코드화함
@@ -38,7 +38,7 @@ DVC 버전관리
 
 ## 1.1 프로젝트 디렉터리 생성
 
-WSL Ubuntu 터미널에서 다음 명령을 실행합니다.
+WSL Ubuntu 터미널에서 다음 명령 실행:
 
 ```bash
 mkdir -p ~/mlops-week02
@@ -58,7 +58,18 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-터미널 앞에 `(.venv)`가 표시되는지 확인합니다.
+터미널 앞에 `(.venv)` 표시 여부 확인
+
+`.gitignore` 작성:
+
+```bash
+cat > .gitignore <<'EOF'
+.venv/
+__pycache__/
+EOF
+```
+
+> Python 3.12 이하의 `venv`는 자체 `.gitignore`를 만들지 않음 → `git add .` 실행 시 `.venv` 전체가 커밋되므로 반드시 먼저 작성
 
 ## 1.4 필요한 패키지 설치
 
@@ -108,7 +119,7 @@ mlops-week02/
 
 ## 2.2 실습용 원본 데이터 생성
 
-다음 명령으로 실습용 CSV 파일을 생성합니다.
+다음 명령으로 실습용 CSV 파일 생성:
 
 ```bash
 cat > data/raw/students_raw.csv <<'EOF'
@@ -134,7 +145,7 @@ EOF
 cat data/raw/students_raw.csv
 ```
 
-이 데이터에는 의도적으로 다음 문제가 포함되어 있습니다.
+데이터에 의도적으로 포함한 문제:
 
 - `study_hours` 결측치
 - `attendance` 결측치
@@ -147,7 +158,7 @@ cat data/raw/students_raw.csv
 
 ## 2.3 Pandas로 원본 데이터 확인
 
-`src/inspect_data.py` 파일을 생성합니다.
+`src/inspect_data.py` 파일 생성:
 
 ```bash
 cat > src/inspect_data.py <<'PY'
@@ -173,7 +184,7 @@ print("\n=== 중복 student_id 개수 ===")
 print(df.duplicated(subset=["student_id"]).sum())
 
 print("\n=== 기초 통계량 ===")
-print(df.describe(numeric_only=True))
+print(df.describe())
 PY
 ```
 
@@ -185,7 +196,7 @@ python src/inspect_data.py
 
 ### 확인할 내용
 
-출력 결과에서 다음을 직접 찾아봅니다.
+출력 결과에서 직접 확인할 내용:
 
 1. 전체 행과 열의 수는 몇 개인가?
 2. 어떤 컬럼에 결측치가 있는가?
@@ -197,7 +208,7 @@ python src/inspect_data.py
 
 ## 2.4 데이터 전처리 코드 작성
 
-`src/preprocess.py`를 생성합니다.
+`src/preprocess.py` 생성:
 
 ```bash
 cat > src/preprocess.py <<'PY'
@@ -282,7 +293,7 @@ cat data/processed/students_clean.csv
 
 ## 2.5 전처리 전·후 비교
 
-다음 명령을 실행합니다.
+다음 명령 실행:
 
 ```bash
 python - <<'PY'
@@ -310,7 +321,7 @@ PY
 ```
 
 MLOps에서 중요한 것은 데이터 자체를 한 번 수정하는 것이 아니라  
-**같은 입력에 같은 전처리 규칙을 반복 적용할 수 있도록 코드로 남기는 것**입니다.
+**같은 입력에 같은 전처리 규칙을 반복 적용할 수 있도록 코드로 관리**
 
 ---
 
@@ -327,7 +338,7 @@ MLOps에서 중요한 것은 데이터 자체를 한 번 수정하는 것이 아
 
 ## 3.2 DVC 초기화
 
-프로젝트 루트에서 실행합니다.
+프로젝트 루트에서 실행:
 
 ```bash
 dvc init
@@ -339,7 +350,7 @@ dvc init
 ls -a
 ```
 
-`.dvc/` 디렉터리가 생성된 것을 확인합니다.
+`.dvc/` 디렉터리 생성 여부 확인
 
 ---
 
@@ -356,8 +367,7 @@ ls data/raw
 cat data/raw/students_raw.csv.dvc
 ```
 
-DVC가 원본 CSV를 직접 Git에 넣는 대신  
-`students_raw.csv.dvc`라는 작은 메타데이터 파일을 생성합니다.
+DVC는 원본 CSV 대신 `students_raw.csv.dvc` 메타데이터 파일을 생성
 
 Git 상태 확인:
 
@@ -369,8 +379,7 @@ git status
 
 ## 3.4 로컬 DVC Remote 구성
 
-이번 실습에서는 클라우드 스토리지 대신  
-프로젝트 밖의 로컬 폴더를 DVC 저장소로 사용합니다.
+이번 실습의 DVC 저장소: 클라우드 스토리지 대신 프로젝트 밖의 로컬 폴더 사용
 
 ```bash
 mkdir -p ../dvc-storage
@@ -401,8 +410,8 @@ DVC Remote
  └─ 실제 데이터 파일 내용
 ```
 
-Git은 **코드와 데이터의 위치·버전 정보**를 관리하고,  
-DVC는 **실제 데이터 파일**을 별도의 저장소에 보관합니다.
+- Git: **코드와 데이터의 위치·버전 정보** 관리
+- DVC: **실제 데이터 파일**을 별도 저장소에 보관
 
 ---
 
@@ -424,7 +433,7 @@ git log --oneline --decorate
 
 ## 3.6 데이터 변경
 
-새로운 학생 데이터가 수집되었다고 가정합니다.
+새로운 학생 데이터가 수집된 상황 가정
 
 ```bash
 cat >> data/raw/students_raw.csv <<'EOF'
@@ -453,13 +462,13 @@ dvc add data/raw/students_raw.csv
 dvc push
 ```
 
-전처리도 다시 실행합니다.
+전처리 재실행:
 
 ```bash
 python src/preprocess.py
 ```
 
-두 번째 버전을 Git에 기록합니다.
+두 번째 버전을 Git에 기록:
 
 ```bash
 git add .
@@ -496,7 +505,7 @@ dvc checkout
 tail data/raw/students_raw.csv
 ```
 
-`S012`가 존재하지 않는 것을 확인합니다.
+`S012`가 없는지 확인
 
 두 번째 버전으로 이동:
 
@@ -511,9 +520,9 @@ dvc checkout
 tail data/raw/students_raw.csv
 ```
 
-`S012`가 다시 나타나는 것을 확인합니다.
+`S012`가 다시 나타나는지 확인
 
-실습을 계속하기 위해 main 브랜치로 돌아갑니다.
+실습을 계속하기 위해 main 브랜치로 복귀
 
 ```bash
 git checkout main
@@ -533,7 +542,7 @@ dvc checkout
 | 데이터 버전과 코드 버전 연결 | O | O |
 | 로컬/원격 데이터 저장소 | - | O |
 
-핵심은 다음과 같습니다.
+핵심 정리:
 
 ```text
 Git commit
@@ -542,7 +551,7 @@ DVC data version
 ```
 
 코드만 과거 버전으로 돌아가는 것이 아니라  
-**그 코드가 사용했던 데이터 버전까지 함께 복원할 수 있어야 재현성이 확보됩니다.**
+**코드가 사용한 데이터 버전까지 함께 복원할 수 있어야 재현성 확보**
 
 ---
 
@@ -558,7 +567,7 @@ DVC data version
 
 ## 4.2 품질 검증 규칙
 
-이번 실습에서는 다음 규칙을 적용합니다.
+이번 실습의 적용 규칙:
 
 | 항목 | 검증 규칙 |
 |---|---|
@@ -575,7 +584,7 @@ DVC data version
 
 ## 4.3 품질 검증 프로그램 작성
 
-`src/quality_check.py`를 생성합니다.
+`src/quality_check.py` 생성:
 
 ```bash
 cat > src/quality_check.py <<'PY'
@@ -584,7 +593,6 @@ import sys
 from pathlib import Path
 
 import pandas as pd
-
 
 REQUIRED_COLUMNS = [
     "student_id",
@@ -605,7 +613,6 @@ RANGE_RULES = {
     "risk_flag": (0, 1),
 }
 
-
 def check_iqr_outliers(series: pd.Series):
     q1 = series.quantile(0.25)
     q3 = series.quantile(0.75)
@@ -616,7 +623,6 @@ def check_iqr_outliers(series: pd.Series):
 
     outliers = series[(series < lower) | (series > upper)]
     return outliers, lower, upper
-
 
 def main():
     parser = argparse.ArgumentParser()
@@ -673,8 +679,12 @@ def main():
 
         numeric = pd.to_numeric(df[col], errors="coerce")
 
-        if numeric.isna().any():
-            errors.append(f"{col}: 숫자가 아닌 값 존재")
+        # 값이 있는데 숫자로 변환되지 않은 경우만 형식 오류로 판정
+        # (빈 값은 위의 결측치 검사에서 이미 처리)
+        non_numeric = numeric.isna() & df[col].notna()
+
+        if non_numeric.any():
+            errors.append(f"{col}: 숫자가 아닌 값 {int(non_numeric.sum())}건")
             continue
 
         invalid = df[(numeric < min_value) | (numeric > max_value)]
@@ -713,7 +723,6 @@ def main():
     print("\n=== QUALITY CHECK PASSED ===")
     sys.exit(0)
 
-
 if __name__ == "__main__":
     main()
 PY
@@ -723,7 +732,7 @@ PY
 
 ## 4.4 정상 데이터 검증
 
-먼저 최신 전처리 데이터를 생성합니다.
+최신 전처리 데이터 생성:
 
 ```bash
 python src/preprocess.py
@@ -735,7 +744,7 @@ python src/preprocess.py
 python src/quality_check.py
 ```
 
-정상적인 경우 마지막에 다음 메시지가 출력됩니다.
+정상 실행 시 마지막 출력:
 
 ```text
 === QUALITY CHECK PASSED ===
@@ -747,7 +756,7 @@ python src/quality_check.py
 echo $?
 ```
 
-정상이라면 다음과 같이 표시됩니다.
+정상 종료 시 표시:
 
 ```text
 0
@@ -758,7 +767,7 @@ echo $?
 ## 4.5 오류 데이터 생성
 
 품질검사가 실제로 문제를 잡는지 확인하기 위해  
-정상 데이터의 복사본에 의도적으로 오류를 넣습니다.
+정상 데이터 복사본에 의도적으로 오류 삽입
 
 ```bash
 python - <<'PY'
@@ -819,17 +828,16 @@ echo $?
 
 ## 4.6 왜 종료코드가 중요한가?
 
-사람이 화면을 보고 판단하는 것만으로는 자동화된 MLOps 파이프라인을 만들 수 없습니다.
+화면을 보고 사람이 판단하는 방식만으로는 MLOps 파이프라인 자동화 불가
 
-품질검사 프로그램이 다음처럼 동작하면:
+품질검사 프로그램 동작:
 
 ```text
 품질 정상 → exit code 0
 품질 실패 → exit code 1
 ```
 
-GitHub Actions, ZenML, Airflow 등의 자동화 도구는  
-종료코드를 보고 다음 단계를 실행할지 중단할지 결정할 수 있습니다.
+GitHub Actions, ZenML, Airflow 등의 자동화 도구: 종료코드에 따라 다음 단계 실행 또는 중단 결정
 
 ```text
 데이터 입력
@@ -842,19 +850,19 @@ GitHub Actions, ZenML, Airflow 등의 자동화 도구는
 모델 학습       파이프라인 중단
 ```
 
-이 구조는 이후 CI/CD 및 파이프라인 자동화 실습으로 연결됩니다.
+이후 CI/CD 및 파이프라인 자동화 실습으로 연결
 
 ---
 
 # 5. 전체 실습 결과 확인
 
-프로젝트 구조를 확인합니다.
+프로젝트 구조 확인:
 
 ```bash
 find . -maxdepth 3 -type f | sort
 ```
 
-대략 다음과 같은 구조가 됩니다.
+예상 프로젝트 구조:
 
 ```text
 mlops-week02/
@@ -879,7 +887,7 @@ mlops-week02/
 
 # 6. 실습 정리
 
-이번 주 실습에서 수행한 전체 과정은 다음과 같습니다.
+이번 주 실습의 전체 수행 과정:
 
 ```text
 [2차시]
@@ -933,21 +941,21 @@ PASS / FAIL
 
 # 7. 선택 과제
 
-다음 중 하나 이상을 수행합니다.
+다음 과제 중 하나 이상 수행:
 
-1. `students_raw.csv`에 새로운 학생 3명을 추가하고 새로운 DVC 버전을 만듭니다.
-2. `preprocess.py`의 결측치 처리 방법을 중앙값에서 평균값으로 바꿔 결과 차이를 비교합니다.
-3. 품질검사 규칙에 `attendance < 50`인 학생 수를 경고하는 규칙을 추가합니다.
-4. `avg_score` 이외에 새로운 파생변수를 하나 설계합니다.
-5. `data-v1`과 `data-v2`를 각각 체크아웃하여 행 수 차이를 확인합니다.
+1. `students_raw.csv`에 새로운 학생 3명을 추가하고 DVC 새 버전 생성
+2. `preprocess.py`의 결측치 처리 방법을 중앙값에서 평균값으로 바꾸고 결과 차이 비교
+3. 품질검사 규칙에 `attendance < 50`인 학생 수를 경고하는 항목 추가
+4. `avg_score` 이외의 새로운 파생변수 설계
+5. `data-v1`과 `data-v2`를 각각 체크아웃하여 행 수 차이 확인
 
 ---
 
 # 8. 다음 주차 연결
 
-이번 주에는 **데이터의 재현성**을 다뤘습니다.
+이번 주 학습 주제: **데이터의 재현성**
 
-다음 주에는 같은 원리를 모델 개발 단계로 확장하여 MLflow를 이용해 다음을 관리합니다.
+다음 주 학습 주제: 같은 원리를 모델 개발 단계로 확장하고 MLflow로 다음 항목 관리
 
 ```text
 데이터 버전
@@ -970,4 +978,4 @@ PASS / FAIL
 3주차: 어떤 설정으로 어떤 모델을 만들었는가?
 ```
 
-를 각각 추적하는 것이 핵심입니다.
+각 단계에서 해당 항목을 추적하는 것이 핵심

@@ -11,7 +11,7 @@
 # 0. 이번 주 목표
 
 7주차는 새로운 도구를 배우는 주차가 아니라,  
-2~6주차에 배운 요소를 하나의 MLOps 흐름으로 연결하는 종합 실습입니다.
+2~6주차에 배운 요소를 하나의 MLOps 흐름으로 연결하는 종합 실습임
 
 전체 흐름:
 
@@ -39,7 +39,7 @@ Monitoring
 Retraining 판단
 ```
 
-이번 실습에서는 전체 흐름 가운데 다음 핵심 구간을 직접 구현합니다.
+이번 실습에서는 전체 흐름 가운데 다음 핵심 구간을 직접 구현함
 
 ```text
 ZenML Pipeline
@@ -55,13 +55,13 @@ Model Registry
 ```
 
 그리고 마지막에는 각 팀 또는 개인이  
-자신의 파이프라인 구조와 실행 결과를 설명합니다.
+자신의 파이프라인 구조와 실행 결과를 설명함
 
 ---
 
 # 1. 실습 시나리오
 
-이번 실습에서는 **학습위험 학생 예측**을 예시 사례로 사용합니다.
+이번 실습에서는 **학습위험 학생 예측**을 예시 사례로 사용함
 
 목표:
 
@@ -99,7 +99,7 @@ risk_flag = 1
 ```
 
 > 본 실습의 목적은 실제 교육적 판단 모델을 만드는 것이 아니라  
-> MLOps 파이프라인의 구조를 학습하는 것입니다.
+> MLOps 파이프라인의 구조를 학습하는 것임
 
 ---
 
@@ -116,18 +116,29 @@ source .venv/bin/activate
 
 python -m pip install --upgrade pip
 pip install \
-  "zenml==0.96.4" \
-  mlflow \
+  "zenml[local]==0.96.4" \
+  "mlflow==3.18.0" \
   scikit-learn \
   pandas \
   numpy
 ```
+
+> `zenml[local]`: 로컬 DB 기반 실행에 필요한 의존성 포함 (기본 `zenml`만 설치하면 `zenml init` 실패)  
+> MLflow 버전은 3주차와 동일하게 고정
 
 폴더 생성:
 
 ```bash
 mkdir -p data src
 touch src/__init__.py
+
+cat > .gitignore <<'EOF'
+.venv/
+__pycache__/
+mlflow.db
+mlartifacts/
+mlruns/
+EOF
 ```
 
 구조:
@@ -159,7 +170,7 @@ mlops-week07/
 
 # 4. Step 1 — 문제 정의
 
-다음 질문에 답합니다.
+다음 질문에 답함
 
 ```text
 무엇을 예측할 것인가?
@@ -208,7 +219,7 @@ Features + Target
 
 # 6. Step 3 — Pipeline 단계 설계
 
-최소 3단계로 구성합니다.
+최소 3단계로 구성함
 
 ```text
 Preprocess
@@ -273,7 +284,7 @@ MLflow Model Registry
 
 # 8. 설계안 작성
 
-실습 전 다음 표를 작성합니다.
+실습 전 다음 표를 작성함
 
 | 단계 | 입력 | 수행 작업 | 출력 | 도구 |
 |---|---|---|---|---|
@@ -298,7 +309,7 @@ MLflow Model Registry
 
 # 10. 2차시 산출물
 
-2차시 종료 시 다음을 제출합니다.
+2차시 종료 시 다음을 제출함
 
 ```text
 ① Pipeline 구조도
@@ -354,7 +365,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-
 def main():
     rng = np.random.default_rng(42)
 
@@ -395,7 +405,6 @@ def main():
     print("risk distribution:")
     print(df["risk_flag"].value_counts())
 
-
 if __name__ == "__main__":
     main()
 PY
@@ -410,6 +419,8 @@ python src/make_data.py
 ---
 
 # 13. MLflow Server 실행
+
+> 3·4주차 MLflow Server가 아직 실행 중이면 `5000` 포트 충돌 발생 → 먼저 종료 (`Ctrl + C`)
 
 별도 터미널:
 
@@ -467,11 +478,9 @@ from sklearn.model_selection import train_test_split
 
 from zenml import pipeline, step
 
-
 TRACKING_URI = "http://127.0.0.1:5000"
 EXPERIMENT_NAME = "week07-capstone"
 MODEL_NAME = "student-risk-model"
-
 
 @step
 def preprocess_step(
@@ -511,7 +520,6 @@ def preprocess_step(
 
     return X_train, X_test, y_train, y_test
 
-
 @step
 def train_step(
     X_train: pd.DataFrame,
@@ -532,8 +540,8 @@ def train_step(
 
     return model
 
-
-@step
+# MLflow 기록·Registry 등록은 외부 시스템에 영향을 주는 작업이므로 캐시 비활성화
+@step(enable_cache=False)
 def evaluate_and_register_step(
     model: RandomForestClassifier,
     X_test: pd.DataFrame,
@@ -586,9 +594,11 @@ def evaluate_and_register_step(
 
         if accuracy >= min_accuracy:
 
+            # MLflow 3.x: name 사용, RandomForest는 cloudpickle로 저장 (3주차와 동일)
             model_info = mlflow.sklearn.log_model(
                 sk_model=model,
-                artifact_path="model",
+                name="model",
+                serialization_format="cloudpickle",
                 registered_model_name=MODEL_NAME,
                 input_example=X_test.iloc[:3],
             )
@@ -614,7 +624,6 @@ def evaluate_and_register_step(
             )
 
     return accuracy
-
 
 @pipeline
 def mlops_pipeline(
@@ -652,6 +661,9 @@ PY
 
 ---
 
+> `evaluate_and_register_step`에 `enable_cache=False`를 지정한 이유:  
+> ZenML은 입력과 Parameter가 같으면 이전 결과를 재사용(Cache)함 → 같은 설정으로 다시 실행하면 Step 자체가 건너뛰어져 MLflow Run 기록과 모델 등록이 일어나지 않음
+
 # 16. Pipeline 실행 파일 작성
 
 `run_pipeline.py`:
@@ -659,7 +671,6 @@ PY
 ```bash
 cat > run_pipeline.py <<'PY'
 from src.pipeline import mlops_pipeline
-
 
 if __name__ == "__main__":
 
@@ -769,7 +780,7 @@ mlops_pipeline(
 python run_pipeline.py
 ```
 
-MLflow UI에서 Run을 비교합니다.
+MLflow UI에서 Run을 비교함
 
 ---
 
@@ -795,13 +806,13 @@ Version 2
 ...
 ```
 
-이 생성됩니다.
+이 생성됨
 
 ---
 
 # 21. candidate Alias 지정
 
-가장 적절한 Model Version을 확인한 뒤:
+가장 최근에 등록된 Model Version을 `candidate`로 지정:
 
 ```bash
 python - <<'PY'
@@ -838,11 +849,14 @@ print(
 PY
 ```
 
+> 위 코드는 성능 비교 없이 최신 Version을 선택함  
+> MLflow UI에서 비교 후 다른 Version을 지정하려면 `version=latest.version` 대신 Version 번호(예: `"2"`)를 직접 입력
+
 ---
 
 # 22. 결과 발표 준비
 
-각 팀 또는 개인은 다음 내용을 정리합니다.
+각 팀 또는 개인은 다음 내용을 정리함
 
 ## 1. 문제 정의
 
@@ -951,7 +965,7 @@ Candidate
 어떤 도구를 배치할 것인가?
 ```
 
-를 판단하는 것입니다.
+를 판단하는 것임
 
 ---
 
@@ -997,11 +1011,11 @@ End-to-End MLOps Design
 
 # 26. 선택 확장 과제
 
-1. `evaluate_step`을 별도 ZenML Step으로 분리합니다.
-2. 2주차 DVC를 연결하여 데이터 버전을 함께 관리합니다.
-3. GitHub Actions에서 Pipeline을 자동 실행합니다.
-4. Accuracy 외에 Precision, Recall, F1-score를 기록합니다.
-5. Model Registry에 `candidate`와 `champion` Alias를 적용합니다.
-6. 4주차 방식으로 `candidate` 모델을 REST API로 Serving합니다.
-7. Evidently를 이용하여 입력 데이터 Drift를 추가로 모니터링합니다.
-8. 자신의 전공 또는 업무 사례를 하나 선정하여 동일한 MLOps 구조로 재설계합니다.
+1. `evaluate_step`을 별도 ZenML Step으로 분리함
+2. 2주차 DVC를 연결하여 데이터 버전을 함께 관리함
+3. GitHub Actions에서 Pipeline을 자동 실행함
+4. Accuracy 외에 Precision, Recall, F1-score를 기록함
+5. Model Registry에 `candidate`와 `champion` Alias를 적용함
+6. 4주차 방식으로 `candidate` 모델을 REST API로 Serving함
+7. Evidently를 이용하여 입력 데이터 Drift를 추가로 모니터링함
+8. 자신의 전공 또는 업무 사례를 하나 선정하여 동일한 MLOps 구조로 재설계함
