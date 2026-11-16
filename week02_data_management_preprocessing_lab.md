@@ -95,7 +95,7 @@ Ubuntu 터미널에서:
 ```bash
 sudo apt update
 sudo apt upgrade -y
-sudo apt install -y python3-venv python3-pip git
+sudo apt install -y python3-venv git
 ```
 
 - Ubuntu 22.04는 기본으로 `python3-venv`가 설치되어 있지 않음 → 설치하지 않으면 1.3의 `python3 -m venv` 실행 시 `ensurepip is not available` 오류 발생
