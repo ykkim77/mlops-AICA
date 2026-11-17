@@ -2,8 +2,8 @@
 
 > MLOps 방법론  
 > 주제: Pandas 기반 데이터 전처리 → DVC 데이터 버전관리 → 데이터 품질 검증  
-> 실습 환경: Windows 10/11 + WSL2 Ubuntu 22.04 / Python 3.10 이상 / Git  
-> 클라우드 계정: 필요 없음
+> 실습 환경: Google Colab(2차시 체험) → Windows 10/11 + WSL2 Ubuntu 22.04 + VS Code / Python 3.10 이상 / Git  
+> 클라우드 계정: 필요 없음 (Colab 실습에는 Google 계정 필요)
 
 ---
 
@@ -32,7 +32,246 @@ DVC 버전관리
 - 데이터도 코드처럼 버전을 관리함
 - 모델 학습 전에 데이터 품질을 자동으로 검사함
 
+### 실습 진행 방식
+
+이번 주에는 같은 전처리 실습을 두 가지 환경에서 진행함
+
+| 구분 | A. Colab 기반 | B. VS Code 기반 |
+|---|---|---|
+| 실행 위치 | Google 클라우드의 노트북 | 내 PC의 WSL Ubuntu |
+| 코드 작성 | 노트북 셀에 직접 작성 | `.py` 파일로 작성 |
+| 실행 방법 | 셀 실행 (`Shift + Enter`) | 터미널에서 `python 파일명.py` |
+| 설치 | 필요 없음 | WSL, VS Code, Python 가상환경 |
+| 파일 보존 | 런타임 종료 시 삭제 | 내 PC에 계속 남음 |
+| 진행 범위 | 2차시 전처리 체험 | 2~4차시 전체, 3주차 이후 모든 실습 |
+
+- 먼저 Colab에서 설치 없이 전처리 흐름을 체험함
+- 이후 VS Code 환경을 구성하여 같은 작업을 파일 기반으로 다시 수행함
+- 3주차부터는 VS Code 기반으로만 진행함
+
+왜 VS Code(파일 기반)로 옮기는가:
+
+- 노트북 셀은 실행 순서에 따라 결과가 달라질 수 있음 → 같은 결과를 반복해서 얻기 어려움
+- `.py` 파일은 항상 처음부터 같은 순서로 실행됨 → 재현 가능한 전처리
+- 파일이어야 Git·DVC로 버전관리하고, 이후 GitHub Actions·ZenML 같은 자동화 도구로 실행할 수 있음
+- MLflow 서버, Docker 등 3주차 이후 실습은 로컬 환경이 필요함
+
 ---
+
+# A. Colab 기반 실습 (2차시 먼저 체험)
+
+## A.1 Colab 노트북 열기
+
+- 브라우저에서 `https://colab.research.google.com` 접속
+- Google 계정으로 로그인
+- `파일` → `새 노트북` 선택
+- 노트북 이름을 `week02_preprocessing.ipynb`로 변경
+
+## A.2 Colab 셀 명령 규칙
+
+| 표기 | 의미 | 예 |
+|---|---|---|
+| `!명령` | Linux 셸 명령 실행 | `!mkdir`, `!cat` |
+| `%cd 경로` | 노트북의 작업 위치 변경 | `%cd /content` |
+| `%%writefile 파일` | 셀 내용을 파일로 저장 (반드시 셀의 첫 줄) | `%%writefile data/raw/a.csv` |
+| 표기 없음 | 일반 Python 코드 실행 | `import pandas as pd` |
+
+- `!cd 폴더`는 다음 셀에 적용되지 않음 → 작업 위치 변경은 반드시 `%cd` 사용
+- Colab에는 pandas가 이미 설치되어 있음 → 가상환경 생성·패키지 설치 불필요
+
+## A.3 디렉터리 생성
+
+셀 1:
+
+```python
+%cd /content
+!mkdir -p /content/data/raw /content/data/processed /content/src /content/reports
+```
+
+- 왼쪽 `파일`(폴더 아이콘) 패널에서 `data`, `src`, `reports` 폴더 생성 확인
+- B. VS Code 실습과 같은 폴더 구조를 사용함
+
+## A.4 원본 데이터 파일 생성
+
+셀 2:
+
+```python
+%%writefile data/raw/students_raw.csv
+student_id,study_hours,attendance,assignment_score,midterm_score
+S001,3.5,92,85,78
+S002,5.0,88,90,84
+S003,2.0,75,72,68
+S004,7.0,95,96,91
+S005,,83,80,76
+S006,4.0,,88,82
+S007,18.0,90,93,89
+S008,1.5,65,60,58
+S009,6.0,102,95,92
+S010,4.5,87,,81
+S010,4.5,87,,81
+S011,8.0,97,98,95
+```
+
+- `%%writefile` 앞에 빈 줄이나 주석이 있으면 동작하지 않음 → 반드시 셀의 첫 줄에 작성
+- 실행 시 `Writing data/raw/students_raw.csv` 출력
+
+## A.5 원본 데이터 파일 확인
+
+셀 3:
+
+```python
+!cat data/raw/students_raw.csv
+```
+
+데이터에 의도적으로 포함한 문제:
+
+- `study_hours`, `attendance`, `assignment_score` 결측치
+- `student_id=S010` 중복
+- `study_hours=18` 비정상적으로 큰 값
+- `attendance=102` 허용 범위를 벗어난 값
+
+## A.6 Pandas로 원본 데이터 확인
+
+셀 4:
+
+```python
+import pandas as pd
+
+DATA_PATH = "data/raw/students_raw.csv"
+
+df = pd.read_csv(DATA_PATH)
+
+print("=== 데이터 앞부분 ===")
+print(df.head())
+
+print("\n=== 데이터 크기 ===")
+print(df.shape)
+
+print("\n=== 컬럼과 자료형 ===")
+print(df.dtypes)
+
+print("\n=== 결측치 개수 ===")
+print(df.isna().sum())
+
+print("\n=== 중복 student_id 개수 ===")
+print(df.duplicated(subset=["student_id"]).sum())
+
+print("\n=== 기초 통계량 ===")
+print(df.describe())
+```
+
+확인할 내용:
+
+1. 전체 행과 열의 수는 몇 개인가?
+2. 어떤 컬럼에 결측치가 있는가?
+3. 중복된 학생 ID가 있는가?
+4. `attendance`의 최대값이 정상 범위인가?
+5. `study_hours`의 최대값은 다른 값들과 비교해 지나치게 크지 않은가?
+
+## A.7 데이터 전처리
+
+셀 5:
+
+```python
+from pathlib import Path
+import pandas as pd
+
+RAW_PATH = Path("data/raw/students_raw.csv")
+OUTPUT_PATH = Path("data/processed/students_clean.csv")
+
+# 1. 데이터 수집
+df = pd.read_csv(RAW_PATH)
+
+print(f"[1] 원본 데이터: {df.shape[0]}행 × {df.shape[1]}열")
+
+# 2. 중복 제거
+before = len(df)
+df = df.drop_duplicates(subset=["student_id"], keep="first")
+print(f"[2] 중복 제거: {before - len(df)}건 제거")
+
+# 3. 숫자형 컬럼 정의
+numeric_cols = [
+    "study_hours",
+    "attendance",
+    "assignment_score",
+    "midterm_score",
+]
+
+# 숫자로 변환할 수 없는 값은 NaN으로 처리
+for col in numeric_cols:
+    df[col] = pd.to_numeric(df[col], errors="coerce")
+
+# 4. 결측치 처리
+# 실습에서는 단순화를 위해 각 컬럼의 중앙값으로 대체
+for col in numeric_cols:
+    median_value = df[col].median()
+    df[col] = df[col].fillna(median_value)
+
+# 5. 허용 범위를 벗어난 값 처리
+# 실제 업무에서는 도메인 규칙과 데이터 담당자의 확인이 필요함
+df["study_hours"] = df["study_hours"].clip(lower=0, upper=12)
+df["attendance"] = df["attendance"].clip(lower=0, upper=100)
+df["assignment_score"] = df["assignment_score"].clip(lower=0, upper=100)
+df["midterm_score"] = df["midterm_score"].clip(lower=0, upper=100)
+
+# 6. 파생변수 생성
+df["avg_score"] = (
+    df["assignment_score"] * 0.4
+    + df["midterm_score"] * 0.6
+).round(2)
+
+# 간단한 학습위험 예시
+df["risk_flag"] = (
+    (df["attendance"] < 80) | (df["avg_score"] < 70)
+).astype(int)
+
+# 7. 정렬 및 저장
+df = df.sort_values("student_id").reset_index(drop=True)
+
+OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+df.to_csv(OUTPUT_PATH, index=False)
+
+print(f"[3] 전처리 완료: {df.shape[0]}행 × {df.shape[1]}열")
+print(f"[4] 저장 위치: {OUTPUT_PATH}")
+print("\n=== 전처리 결과 ===")
+print(df)
+```
+
+예상 출력 (앞부분):
+
+```text
+[1] 원본 데이터: 12행 × 5열
+[2] 중복 제거: 1건 제거
+[3] 전처리 완료: 11행 × 7열
+[4] 저장 위치: data/processed/students_clean.csv
+```
+
+## A.8 결과 파일 확인
+
+셀 6:
+
+```python
+!cat data/processed/students_clean.csv
+```
+
+확인할 내용:
+
+- 중복된 `S010`이 1건으로 줄었는가?
+- 결측치가 중앙값으로 채워졌는가?
+- `S007`의 `study_hours`가 18 → 12로, `S009`의 `attendance`가 102 → 100으로 보정되었는가?
+- `avg_score`, `risk_flag` 컬럼이 추가되었는가?
+
+## A.9 Colab 실습의 한계
+
+- 런타임 연결이 끊기면 `/content` 아래 파일이 모두 삭제됨
+- 셀을 순서와 다르게 실행하면 결과가 달라질 수 있음
+- 3차시의 Git·DVC 버전관리, 3주차 이후의 MLflow 서버·Docker 실습에는 적합하지 않음
+
+→ 이후 같은 내용을 B. VS Code 기반 실습에서 `.py` 파일로 다시 작성하고, 이상치 탐지(2.4)와 3·4차시까지 이어서 진행함
+
+---
+
+# B. VS Code 기반 실습
 
 # 1. 공통 실습 환경 구성
 
@@ -95,7 +334,7 @@ Ubuntu 터미널에서:
 ```bash
 sudo apt update
 sudo apt upgrade -y
-sudo apt install -y python3-venv git
+sudo apt install -y python3-venv python3-pip git
 ```
 
 - Ubuntu 22.04는 기본으로 `python3-venv`가 설치되어 있지 않음 → 설치하지 않으면 1.3의 `python3 -m venv` 실행 시 `ensurepip is not available` 오류 발생
@@ -123,7 +362,17 @@ git config --global user.email "student@example.com"
 - Windows 탐색기에서 Ubuntu 폴더 열기: Ubuntu 터미널에서 `explorer.exe .` 실행
 - 또는 탐색기 주소창에 `\\wsl$\Ubuntu-22.04\home\<사용자이름>` 입력
 
-### 1.0.8 자주 발생하는 오류
+### 1.0.8 VS Code 설치 및 WSL 연결
+
+- Windows에 VS Code 설치: `https://code.visualstudio.com` → 다운로드 후 설치
+- VS Code 실행 → 왼쪽 `확장(Extensions)` 아이콘(`Ctrl + Shift + X`)에서 다음 두 확장 설치
+  - **WSL** (Microsoft)
+  - **Python** (Microsoft)
+- VS Code는 Windows에 설치하고, 코드와 Python은 WSL Ubuntu 안에서 실행하는 구조임
+
+연결 확인은 1.1에서 실습 폴더를 만든 뒤 진행함
+
+### 1.0.9 자주 발생하는 오류
 
 | 증상 | 원인 및 해결 |
 |---|---|
@@ -131,17 +380,28 @@ git config --global user.email "student@example.com"
 | `wsl -l -v`의 VERSION이 `1` | PowerShell에서 `wsl --set-version Ubuntu-22.04 2` 실행 |
 | WSL 업데이트 필요 안내 | PowerShell에서 `wsl --update` 실행 |
 | `python3 -m venv` 실패 | 1.0.5의 `python3-venv` 설치 여부 확인 |
-
-> 선택: VS Code를 사용할 경우 **WSL** 확장을 설치하면 Ubuntu 터미널에서 `code .`으로 실습 폴더를 바로 열 수 있음
+| Ubuntu에서 `code: command not found` | VS Code에 WSL 확장 설치 후 Ubuntu 터미널을 닫았다 다시 열기 |
 
 ## 1.1 프로젝트 디렉터리 생성
 
-WSL Ubuntu 터미널에서 다음 명령 실행:
+`시작` 메뉴에서 `Ubuntu 22.04`를 열고 다음 명령 실행:
 
 ```bash
 mkdir -p ~/mlops-week02
 cd ~/mlops-week02
+code .
 ```
+
+- `code .` = 현재 폴더를 VS Code로 열기
+- 처음 실행 시 WSL용 VS Code Server가 자동 설치됨 (1~2분 소요)
+- VS Code 왼쪽 아래에 `WSL: Ubuntu-22.04`가 표시되면 연결 성공
+- `신뢰할 수 있는 작성자` 확인 창이 나타나면 `예, 작성자를 신뢰합니다` 선택
+
+이후 모든 명령은 VS Code 터미널에서 실행함
+
+- VS Code 메뉴 `터미널` → `새 터미널` (단축키: ``Ctrl + ` ``)
+- 터미널이 `~/mlops-week02` 위치의 bash로 열리는지 확인
+- 파일 생성은 `cat > 파일 <<'PY'` 명령 대신 VS Code 왼쪽 탐색기에서 새 파일을 만들고 코드를 붙여넣어도 됨
 
 ## 1.2 Git 저장소 초기화
 
@@ -157,6 +417,12 @@ source .venv/bin/activate
 ```
 
 터미널 앞에 `(.venv)` 표시 여부 확인
+
+VS Code에서 Python 인터프리터 선택:
+
+- `Ctrl + Shift + P` → `Python: Select Interpreter` 입력
+- `./.venv/bin/python` 선택
+- 이후 새 터미널을 열면 가상환경이 자동으로 활성화됨
 
 `.gitignore` 작성:
 
@@ -209,6 +475,7 @@ mlops-week02/
 
 - CSV 파일을 Pandas DataFrame으로 불러옴
 - 결측치, 중복값, 비정상 범위 값을 확인함
+- IQR 기준으로 이상치를 탐지하고 처리 방법을 비교함
 - 데이터를 정제하고 새로운 파생변수를 생성함
 - 전처리 결과를 별도의 파일로 저장함
 - 전처리 작업을 Python 코드로 재현 가능하게 만듦
@@ -304,7 +571,218 @@ python src/inspect_data.py
 
 ---
 
-## 2.4 데이터 전처리 코드 작성
+## 2.4 이상치 탐지 및 처리 방법 비교
+
+### 이상치와 오류의 구분
+
+| 구분 | 의미 | 예 | 기본 처리 방향 |
+|---|---|---|---|
+| 범위 위반 | 도메인 규칙상 존재할 수 없는 값 | 출석률 102% | 오류로 보고 수정 |
+| 이상치 | 다른 값들과 비교해 드물게 크거나 작은 값 | 출석률 65% | 오류인지 실제 값인지 확인 후 결정 |
+
+- 이상치 = 반드시 오류는 아님
+- 통계적으로 드문 값이 실제로는 가장 중요한 데이터일 수 있음
+
+### IQR 기준 이상치 탐지
+
+```text
+Q1  = 하위 25% 지점의 값
+Q3  = 하위 75% 지점의 값
+IQR = Q3 − Q1
+
+정상 범위 = Q1 − 1.5 × IQR  ~  Q3 + 1.5 × IQR
+→ 정상 범위를 벗어난 값을 이상치로 판단
+```
+
+- 가운데 50% 데이터의 퍼짐(IQR)을 기준으로 판단함
+- 평균·표준편차를 사용하지 않음 → 극단값 자신이 기준을 왜곡하지 않음
+- 데이터 분포가 정규분포가 아니어도, 표본이 작아도 사용 가능
+- 1.5는 관례적인 배수이며, 더 극단적인 값만 찾으려면 3.0 사용
+
+### 탐지 및 비교 코드 작성
+
+`src/detect_outliers.py` 생성:
+
+```bash
+cat > src/detect_outliers.py <<'PY'
+from pathlib import Path
+
+import pandas as pd
+
+RAW_PATH = Path("data/raw/students_raw.csv")
+REPORT_PATH = Path("reports/outlier_report.csv")
+
+NUMERIC_COLS = [
+    "study_hours",
+    "attendance",
+    "assignment_score",
+    "midterm_score",
+]
+
+IQR_K = 1.5  # 이상치 판단 배수 (일반적으로 1.5 사용)
+
+
+def iqr_bounds(series):
+    q1 = series.quantile(0.25)
+    q3 = series.quantile(0.75)
+    iqr = q3 - q1
+    return q1 - IQR_K * iqr, q3 + IQR_K * iqr
+
+
+# 1. 데이터 준비: 중복 제거 후 숫자형 변환 (결측치는 그대로 둠)
+df = pd.read_csv(RAW_PATH)
+df = df.drop_duplicates(subset=["student_id"], keep="first")
+for col in NUMERIC_COLS:
+    df[col] = pd.to_numeric(df[col], errors="coerce")
+
+# 2. IQR 기준 이상치 탐지
+records = []
+for col in NUMERIC_COLS:
+    s = df[col].dropna()
+    q1 = s.quantile(0.25)
+    q3 = s.quantile(0.75)
+    lower, upper = iqr_bounds(s)
+
+    print(f"\n=== {col} ===")
+    print(f"Q1={q1:.2f}, Q3={q3:.2f}, IQR={q3 - q1:.2f}")
+    print(f"정상 범위: {lower:.2f} ~ {upper:.2f}")
+
+    outliers = s[(s < lower) | (s > upper)]
+
+    if outliers.empty:
+        print("- 이상치 없음")
+
+    for idx, value in outliers.items():
+        sid = df.loc[idx, "student_id"]
+        print(f"- {sid}: {value}")
+        records.append(
+            {
+                "student_id": sid,
+                "column": col,
+                "value": value,
+                "lower": round(lower, 2),
+                "upper": round(upper, 2),
+            }
+        )
+
+# 3. 탐지 결과 저장
+REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
+report = pd.DataFrame(records)
+report.to_csv(REPORT_PATH, index=False)
+print(f"\n이상치 리포트 저장: {REPORT_PATH} ({len(report)}건)")
+
+# 4. 처리 방법 비교: study_hours의 S007(18시간)을 예로 비교
+col = "study_hours"
+s = df[col]
+lower, upper = iqr_bounds(s.dropna())
+
+compare = {
+    "원본": s,
+    "제거(drop)": s[(s >= lower) & (s <= upper) | s.isna()],
+    "IQR 경계로 보정": s.clip(lower=lower, upper=upper),
+    "도메인 상한으로 보정": s.clip(lower=0, upper=12),
+    "중앙값으로 대체": s.mask(s > upper, s.median()),
+}
+
+summary = pd.DataFrame(
+    [
+        {
+            "방법": name,
+            "행 수": len(values),
+            "평균": round(values.mean(), 2),
+            "최대": round(values.max(), 2),
+        }
+        for name, values in compare.items()
+    ]
+).set_index("방법")
+
+print(f"\n=== 처리 방법별 {col} 비교 ===")
+print(summary)
+PY
+```
+
+실행:
+
+```bash
+python src/detect_outliers.py
+```
+
+탐지 결과:
+
+```text
+=== study_hours ===
+Q1=3.62, Q3=6.75, IQR=3.12
+정상 범위: -1.06 ~ 11.44
+- S007: 18.0
+
+=== attendance ===
+Q1=84.00, Q3=94.25, IQR=10.25
+정상 범위: 68.62 ~ 109.62
+- S008: 65.0
+
+=== assignment_score ===
+Q1=81.25, Q3=94.50, IQR=13.25
+정상 범위: 61.38 ~ 114.38
+- S008: 60.0
+
+=== midterm_score ===
+Q1=77.00, Q3=90.00, IQR=13.00
+정상 범위: 57.50 ~ 109.50
+- 이상치 없음
+
+이상치 리포트 저장: reports/outlier_report.csv (3건)
+```
+
+결과 해석:
+
+| 학생 | 값 | IQR 탐지 | 해석 |
+|---|---|---|---|
+| S007 | 학습시간 18 | 이상치 | 하루 학습시간으로 비현실적 → 입력 오류 가능성 높음 |
+| S008 | 출석 65, 과제 60 | 이상치 | 모든 지표가 낮은 학습위험 학생 → 오류가 아닌 실제 데이터 |
+| S009 | 출석률 102 | 탐지 안 됨 | 정상 범위(68.62 ~ 109.62) 안의 값 → 통계 기준만으로는 오류를 놓침 |
+
+- S008: 이상치라고 삭제하면 모델이 찾아야 할 학습위험 학생 데이터가 사라짐
+- S009: IQR은 "드문 값"을 찾을 뿐, "불가능한 값"은 찾지 못함 → 허용 범위 검사가 별도로 필요함
+
+### 처리 방법 비교
+
+같은 스크립트의 마지막 출력:
+
+```text
+=== 처리 방법별 study_hours 비교 ===
+             행 수    평균     최대
+방법
+원본            11  5.95  18.00
+제거(drop)      10  4.61   8.00
+IQR 경계로 보정    11  5.29  11.44
+도메인 상한으로 보정   11  5.35  12.00
+중앙값으로 대체      11  4.62   8.00
+```
+
+| 처리 방법 | 방식 | 장점 | 단점 |
+|---|---|---|---|
+| 제거 | 해당 행 삭제 | 단순함 | 다른 컬럼의 정상 정보까지 함께 사라짐, 소규모 데이터에서 손실 큼 |
+| IQR 경계로 보정 | 경계값으로 잘라냄 (Capping) | 행 유지 | 데이터가 바뀔 때마다 경계값이 달라짐 |
+| 도메인 상한으로 보정 | 허용 범위 경계로 잘라냄 | 기준이 고정되어 재현성 높음 | 실제 값이 무엇이었는지는 알 수 없음 |
+| 중앙값으로 대체 | 이상치를 결측치처럼 취급 | 분포 왜곡 최소화 | 원래 값과의 관계가 완전히 사라짐 |
+| 유지 + 표시 | 값은 그대로 두고 플래그 컬럼 추가 | 정보 손실 없음, 나중에 판단 가능 | 모델이 이상치의 영향을 그대로 받음 |
+
+- 원본 평균 5.95 → 처리 방법에 따라 4.61 ~ 5.35로 달라짐
+- 처리 방법 선택 = 모델 학습 데이터를 바꾸는 결정 → 반드시 코드와 문서로 기록해야 함
+
+### 이번 실습의 처리 정책
+
+- IQR 이상치(S007, S008): `outlier_flag = 1`로 표시하여 추적 가능하게 함
+- 허용 범위 위반(S007, S009): 범위의 경계값으로 보정 (18 → 12, 102 → 100)
+- 허용 범위 안의 이상치(S008): 값을 바꾸지 않고 유지
+
+> 실제 업무에서는 이상치를 발견하면 먼저 원천 데이터 담당자에게 확인하고, 처리 기준을 팀의 데이터 정책으로 문서화함
+
+다음 단계에서 이 정책을 `preprocess.py`에 반영함
+
+---
+
+## 2.5 데이터 전처리 코드 작성
 
 `src/preprocess.py` 생성:
 
@@ -344,12 +822,35 @@ for col in numeric_cols:
     median_value = df[col].median()
     df[col] = df[col].fillna(median_value)
 
-# 5. 허용 범위를 벗어난 값 처리
+# 5. 이상치 탐지 및 처리
+RANGE_RULES = {
+    "study_hours": (0, 12),
+    "attendance": (0, 100),
+    "assignment_score": (0, 100),
+    "midterm_score": (0, 100),
+}
+
+# 5-1. 이상치 표시 (IQR 기준)
+# 하나의 컬럼이라도 IQR 정상 범위를 벗어나면 outlier_flag = 1
+outlier_mask = pd.Series(False, index=df.index)
+
+for col in RANGE_RULES:
+    q1 = df[col].quantile(0.25)
+    q3 = df[col].quantile(0.75)
+    iqr = q3 - q1
+
+    iqr_outlier = (df[col] < q1 - 1.5 * iqr) | (df[col] > q3 + 1.5 * iqr)
+    outlier_mask = outlier_mask | iqr_outlier
+
+df["outlier_flag"] = outlier_mask.astype(int)
+print(f"[3] 이상치 표시: {df['outlier_flag'].sum()}명")
+
+# 5-2. 처리
+# 허용 범위를 벗어난 값(명백한 오류)만 범위의 경계값으로 보정
+# 범위 안의 이상치는 삭제·변경하지 않고 outlier_flag로 표시만 유지
 # 실제 업무에서는 도메인 규칙과 데이터 담당자의 확인이 필요함
-df["study_hours"] = df["study_hours"].clip(lower=0, upper=12)
-df["attendance"] = df["attendance"].clip(lower=0, upper=100)
-df["assignment_score"] = df["assignment_score"].clip(lower=0, upper=100)
-df["midterm_score"] = df["midterm_score"].clip(lower=0, upper=100)
+for col, (min_value, max_value) in RANGE_RULES.items():
+    df[col] = df[col].clip(lower=min_value, upper=max_value)
 
 # 6. 파생변수 생성
 df["avg_score"] = (
@@ -368,8 +869,8 @@ df = df.sort_values("student_id").reset_index(drop=True)
 OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 df.to_csv(OUTPUT_PATH, index=False)
 
-print(f"[3] 전처리 완료: {df.shape[0]}행 × {df.shape[1]}열")
-print(f"[4] 저장 위치: {OUTPUT_PATH}")
+print(f"[4] 전처리 완료: {df.shape[0]}행 × {df.shape[1]}열")
+print(f"[5] 저장 위치: {OUTPUT_PATH}")
 print("\n=== 전처리 결과 ===")
 print(df)
 PY
@@ -387,9 +888,17 @@ python src/preprocess.py
 cat data/processed/students_clean.csv
 ```
 
+확인할 내용:
+
+- 실행 로그에 `[3] 이상치 표시: 2명` 출력
+- `S007`: `study_hours` 18 → 12로 보정, `outlier_flag = 1`
+- `S008`: 값은 그대로 유지, `outlier_flag = 1`
+- `S009`: `attendance` 102 → 100으로 보정, `outlier_flag = 0` (IQR 이상치가 아니라 범위 위반)
+- 전체 컬럼 수: 8개 (`outlier_flag`, `avg_score`, `risk_flag` 추가)
+
 ---
 
-## 2.5 전처리 전·후 비교
+## 2.6 전처리 전·후 비교
 
 다음 명령 실행:
 
@@ -676,6 +1185,7 @@ DVC data version
 | 과제/중간 점수 | 0~100 |
 | 학습시간 | 0~12 |
 | 전체 결측치 | 없어야 함 |
+| 이상치 표시 | `outlier_flag`는 0 또는 1 |
 | 이상치 | IQR 기준으로 확인 |
 
 ---
@@ -700,6 +1210,7 @@ REQUIRED_COLUMNS = [
     "midterm_score",
     "avg_score",
     "risk_flag",
+    "outlier_flag",
 ]
 
 RANGE_RULES = {
@@ -709,6 +1220,7 @@ RANGE_RULES = {
     "midterm_score": (0, 100),
     "avg_score": (0, 100),
     "risk_flag": (0, 1),
+    "outlier_flag": (0, 1),
 }
 
 def check_iqr_outliers(series: pd.Series):
@@ -841,6 +1353,17 @@ python src/preprocess.py
 ```bash
 python src/quality_check.py
 ```
+
+출력 중 다음 경고가 함께 나타남:
+
+```text
+[WARN] study_hours: IQR 기준 이상치 1건 (범위 -0.38 ~ 10.62)
+[WARN] avg_score: IQR 기준 이상치 1건 (범위 60.30 ~ 110.70)
+```
+
+- `study_hours`: S007을 12로 보정했지만 다른 학생과 비교하면 여전히 큰 값
+- `avg_score`: S008의 낮은 점수
+- 2차시 처리 정책대로 유지한 값이므로 실패가 아닌 경고(WARN)로만 표시
 
 정상 실행 시 마지막 출력:
 
@@ -975,8 +1498,10 @@ mlops-week02/
 │       ├── students_clean.csv
 │       └── students_invalid.csv
 ├── reports/
+│   └── outlier_report.csv
 └── src/
     ├── inspect_data.py
+    ├── detect_outliers.py
     ├── preprocess.py
     └── quality_check.py
 ```
@@ -995,7 +1520,7 @@ Pandas
   ↓
 결측치 처리
 중복 제거
-범위 보정
+이상치 탐지·처리
 파생변수 생성
   ↓
 전처리 데이터
@@ -1027,13 +1552,15 @@ PASS / FAIL
 
 **1. 데이터 전처리는 일회성 작업이 아니라 재현 가능한 코드여야 함**
 
-**2. 모델뿐 아니라 데이터에도 버전이 존재해야 함**
+**2. 이상치는 반드시 오류가 아님 → 탐지와 처리를 분리하고 처리 기준을 코드로 기록해야 함**
 
-**3. 어떤 모델을 어떤 데이터로 학습했는지 추적할 수 있어야 함**
+**3. 모델뿐 아니라 데이터에도 버전이 존재해야 함**
 
-**4. 모델 학습 전에 데이터 품질을 자동으로 검증해야 함**
+**4. 어떤 모델을 어떤 데이터로 학습했는지 추적할 수 있어야 함**
 
-**5. 데이터 품질 검증 결과는 이후 자동화 파이프라인의 실행 조건으로 활용할 수 있음**
+**5. 모델 학습 전에 데이터 품질을 자동으로 검증해야 함**
+
+**6. 데이터 품질 검증 결과는 이후 자동화 파이프라인의 실행 조건으로 활용할 수 있음**
 
 ---
 
@@ -1046,6 +1573,8 @@ PASS / FAIL
 3. 품질검사 규칙에 `attendance < 50`인 학생 수를 경고하는 항목 추가
 4. `avg_score` 이외의 새로운 파생변수 설계
 5. `data-v1`과 `data-v2`를 각각 체크아웃하여 행 수 차이 확인
+6. `detect_outliers.py`의 `IQR_K`를 1.5와 3.0으로 바꾸어 탐지 결과 비교
+7. `S008`을 제거했을 때와 유지했을 때 `risk_flag = 1`인 학생 수 비교 후 어느 쪽이 적절한지 설명
 
 ---
 
