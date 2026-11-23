@@ -937,9 +937,34 @@ MLOps에서 중요한 것은 데이터 자체를 한 번 수정하는 것이 아
 ## 3.1 실습 목표
 
 - Git과 DVC의 역할 차이를 이해함
-- 대용량 데이터 파일을 Git 저장소와 분리하여 관리함
-- 데이터 버전을 코드 버전과 연결함
-- 과거 데이터 버전으로 되돌아가는 과정을 확인함
+- 원본 데이터와 전처리 데이터를 함께 버전관리함
+- 대량의 신규 데이터가 들어온 상황을 재현함
+- 데이터가 변경될 때마다 전처리를 다시 수행하고 새 데이터 버전을 생성함
+- `data-v0 → data-v1 → data-v2`로 이동하며 데이터 버전을 직접 복원함
+
+이번 실습의 핵심 흐름:
+
+```text
+2차시에서 만든 초기 데이터
+        ↓
+      data-v0
+        ↓
+신규 데이터 50건 추가
+        ↓
+전처리 다시 실행
+        ↓
+      data-v1
+        ↓
+신규 데이터 100건 추가
+        ↓
+전처리 다시 실행
+        ↓
+      data-v2
+        ↓
+과거 버전으로 이동·복원
+```
+
+> 핵심: 데이터가 바뀌면 원본 CSV만 바뀌는 것이 아니라, 같은 전처리 코드를 다시 실행하여 가공 데이터도 함께 새 버전으로 관리해야 함
 
 ---
 
@@ -959,23 +984,6 @@ ls -a
 
 `.dvc/` 디렉터리 생성 여부 확인
 
----
-
-## 3.3 원본 데이터 DVC로 관리
-
-```bash
-dvc add data/raw/students_raw.csv
-```
-
-확인:
-
-```bash
-ls data/raw
-cat data/raw/students_raw.csv.dvc
-```
-
-DVC는 원본 CSV 대신 `students_raw.csv.dvc` 메타데이터 파일을 생성
-
 Git 상태 확인:
 
 ```bash
@@ -984,9 +992,50 @@ git status
 
 ---
 
+## 3.3 원본 데이터와 전처리 데이터 DVC로 관리
+
+2차시까지 실습을 완료했으므로 다음 두 파일이 이미 존재함:
+
+```text
+data/raw/students_raw.csv
+data/processed/students_clean.csv
+```
+
+두 파일을 DVC 관리 대상으로 등록:
+
+```bash
+dvc add data/raw/students_raw.csv
+dvc add data/processed/students_clean.csv
+```
+
+확인:
+
+```bash
+ls data/raw
+ls data/processed
+```
+
+다음 메타데이터 파일이 생성되어야 함:
+
+```text
+data/raw/students_raw.csv.dvc
+data/processed/students_clean.csv.dvc
+```
+
+내용 확인:
+
+```bash
+cat data/raw/students_raw.csv.dvc
+cat data/processed/students_clean.csv.dvc
+```
+
+DVC는 실제 CSV의 내용 대신 `.dvc` 메타데이터 파일에 데이터 버전을 식별할 수 있는 정보를 기록함.
+
+---
+
 ## 3.4 로컬 DVC Remote 구성
 
-이번 실습의 DVC 저장소: 클라우드 스토리지 대신 프로젝트 밖의 로컬 폴더 사용
+이번 실습에서는 별도의 클라우드 계정 없이 프로젝트 밖의 로컬 폴더를 DVC Remote로 사용함.
 
 ```bash
 mkdir -p ../dvc-storage
@@ -999,13 +1048,13 @@ dvc remote add -d localstorage ../dvc-storage
 dvc remote list
 ```
 
-데이터 저장:
+초기 데이터 저장:
 
 ```bash
 dvc push
 ```
 
-### 구조 이해
+구조:
 
 ```text
 Git
@@ -1014,19 +1063,169 @@ Git
  └─ DVC 설정
 
 DVC Remote
- └─ 실제 데이터 파일 내용
+ ├─ 원본 데이터 실제 내용
+ └─ 전처리 데이터 실제 내용
 ```
-
-- Git: **코드와 데이터의 위치·버전 정보** 관리
-- DVC: **실제 데이터 파일**을 별도 저장소에 보관
 
 ---
 
-## 3.5 첫 번째 데이터 버전 Git에 기록
+## 3.5 초기 데이터 버전 생성 — data-v0
+
+2차시에서 사용한 초기 데이터 상태를 기준 버전으로 저장함.
+
+현재 원본/전처리 데이터 행 수 확인:
+
+```bash
+python - <<'PY'
+import pandas as pd
+
+raw = pd.read_csv("data/raw/students_raw.csv")
+clean = pd.read_csv("data/processed/students_clean.csv")
+
+print("RAW   :", raw.shape)
+print("CLEAN :", clean.shape)
+PY
+```
+
+초기 상태를 Git에 기록:
 
 ```bash
 git add .
-git commit -m "week02: data version 1"
+git commit -m "week02: baseline data version"
+git tag data-v0
+```
+
+확인:
+
+```bash
+git log --oneline --decorate
+```
+
+현재 상태:
+
+```text
+data-v0
+- 2차시에서 사용한 초기 원본 데이터
+- 2차시 전처리 결과
+```
+
+---
+
+## 3.6 첫 번째 대량 데이터 추가
+
+실제 운영환경에서 새로운 학생 데이터가 한꺼번에 수집된 상황을 가정함.
+
+이번에는 **신규 학생 50명(S012~S061)** 을 추가함.
+
+```bash
+python - <<'PY'
+from pathlib import Path
+import numpy as np
+import pandas as pd
+
+path = Path("data/raw/students_raw.csv")
+
+old = pd.read_csv(path)
+
+# 항상 같은 실습 결과가 나오도록 난수 고정
+rng = np.random.default_rng(42)
+
+n = 50
+new = pd.DataFrame({
+    "student_id": [f"S{i:03d}" for i in range(12, 62)],
+    "study_hours": np.round(rng.normal(5.0, 2.0, n), 1),
+    "attendance": np.round(rng.normal(87, 8, n), 1),
+    "assignment_score": np.round(rng.normal(82, 10, n), 1),
+    "midterm_score": np.round(rng.normal(80, 11, n), 1),
+})
+
+# 현실적인 데이터 문제를 일부 의도적으로 삽입
+new.loc[3, "study_hours"] = np.nan
+new.loc[8, "attendance"] = np.nan
+new.loc[15, "assignment_score"] = np.nan
+
+# 허용 범위를 벗어난 값
+new.loc[20, "study_hours"] = 17
+new.loc[31, "attendance"] = 105
+
+updated = pd.concat([old, new], ignore_index=True)
+updated.to_csv(path, index=False)
+
+print("기존 행 수   :", len(old))
+print("추가 행 수   :", len(new))
+print("변경 후 행 수:", len(updated))
+PY
+```
+
+변경 확인:
+
+```bash
+tail -n 15 data/raw/students_raw.csv
+wc -l data/raw/students_raw.csv
+dvc status
+```
+
+원본 데이터가 변경되었다는 메시지가 나타나는지 확인.
+
+---
+
+## 3.7 첫 번째 변경 데이터 전처리
+
+데이터가 변경되었으므로 2차시에서 작성한 동일한 전처리 코드를 다시 실행함.
+
+```bash
+python src/preprocess.py
+```
+
+전처리 후 원본/가공 데이터 확인:
+
+```bash
+python - <<'PY'
+import pandas as pd
+
+raw = pd.read_csv("data/raw/students_raw.csv")
+clean = pd.read_csv("data/processed/students_clean.csv")
+
+print("=== VERSION 1 후보 데이터 ===")
+print("RAW   :", raw.shape)
+print("CLEAN :", clean.shape)
+print("RAW 결측치  :", raw.isna().sum().sum())
+print("CLEAN 결측치:", clean.isna().sum().sum())
+print("CLEAN study_hours max:", clean["study_hours"].max())
+print("CLEAN attendance max :", clean["attendance"].max())
+PY
+```
+
+확인할 내용:
+
+- 원본 데이터에 신규 학생 50명이 추가되었는가?
+- 신규 데이터의 결측치가 전처리되었는가?
+- `study_hours=17`이 12 이하로 보정되었는가?
+- `attendance=105`가 100 이하로 보정되었는가?
+- 2차시에서 만든 동일한 `src/preprocess.py`가 다시 사용되었는가?
+
+---
+
+## 3.8 첫 번째 변경 데이터 저장 — data-v1
+
+변경된 원본 데이터와 전처리 데이터를 DVC에 다시 등록:
+
+```bash
+dvc add data/raw/students_raw.csv
+dvc add data/processed/students_clean.csv
+```
+
+DVC Remote에 저장:
+
+```bash
+dvc push
+```
+
+Git에 새 데이터 버전의 메타데이터 기록:
+
+```bash
+git add .
+git commit -m "week02: data version 1 - add 50 students"
 git tag data-v1
 ```
 
@@ -1036,50 +1235,139 @@ git tag data-v1
 git log --oneline --decorate
 ```
 
+흐름:
+
+```text
+data-v0
+  ↓
+신규 데이터 50건 추가
+  ↓
+전처리 재실행
+  ↓
+data-v1
+```
+
 ---
 
-## 3.6 데이터 변경
+## 3.9 두 번째 대량 데이터 추가
 
-새로운 학생 데이터가 수집된 상황 가정
+다시 새로운 데이터가 수집된 상황을 가정함.
+
+이번에는 **신규 학생 100명(S062~S161)** 을 추가하여 데이터 규모를 한 번 더 증가시킴.
 
 ```bash
-cat >> data/raw/students_raw.csv <<'EOF'
-S012,5.5,94,91,88
-EOF
+python - <<'PY'
+from pathlib import Path
+import numpy as np
+import pandas as pd
+
+path = Path("data/raw/students_raw.csv")
+
+old = pd.read_csv(path)
+
+rng = np.random.default_rng(2026)
+
+n = 100
+new = pd.DataFrame({
+    "student_id": [f"S{i:03d}" for i in range(62, 162)],
+    "study_hours": np.round(rng.normal(4.5, 2.3, n), 1),
+    "attendance": np.round(rng.normal(84, 10, n), 1),
+    "assignment_score": np.round(rng.normal(79, 12, n), 1),
+    "midterm_score": np.round(rng.normal(78, 13, n), 1),
+})
+
+# 결측치 삽입
+new.loc[5, "study_hours"] = np.nan
+new.loc[18, "attendance"] = np.nan
+new.loc[27, "assignment_score"] = np.nan
+new.loc[44, "midterm_score"] = np.nan
+
+# 허용 범위를 벗어난 값 삽입
+new.loc[52, "study_hours"] = 20
+new.loc[71, "attendance"] = 108
+new.loc[83, "assignment_score"] = 115
+
+updated = pd.concat([old, new], ignore_index=True)
+updated.to_csv(path, index=False)
+
+print("기존 행 수   :", len(old))
+print("추가 행 수   :", len(new))
+print("변경 후 행 수:", len(updated))
+PY
 ```
 
-원본 데이터 마지막 부분 확인:
+변경 확인:
 
 ```bash
-tail data/raw/students_raw.csv
-```
-
-DVC 상태 확인:
-
-```bash
+tail -n 15 data/raw/students_raw.csv
+wc -l data/raw/students_raw.csv
 dvc status
 ```
 
 ---
 
-## 3.7 변경된 데이터 다시 버전관리
+## 3.10 두 번째 변경 데이터 전처리
 
-```bash
-dvc add data/raw/students_raw.csv
-dvc push
-```
-
-전처리 재실행:
+데이터가 다시 변경되었으므로 같은 전처리 코드를 한 번 더 실행함.
 
 ```bash
 python src/preprocess.py
 ```
 
-두 번째 버전을 Git에 기록:
+전처리 결과 확인:
+
+```bash
+python - <<'PY'
+import pandas as pd
+
+raw = pd.read_csv("data/raw/students_raw.csv")
+clean = pd.read_csv("data/processed/students_clean.csv")
+
+print("=== VERSION 2 후보 데이터 ===")
+print("RAW   :", raw.shape)
+print("CLEAN :", clean.shape)
+
+print("\n=== 결측치 ===")
+print("RAW   :", raw.isna().sum().sum())
+print("CLEAN :", clean.isna().sum().sum())
+
+print("\n=== 전처리 데이터 허용범위 ===")
+print("study_hours max      :", clean["study_hours"].max())
+print("attendance max       :", clean["attendance"].max())
+print("assignment_score max :", clean["assignment_score"].max())
+print("midterm_score max    :", clean["midterm_score"].max())
+PY
+```
+
+확인할 내용:
+
+- 두 번째 신규 데이터 100명이 추가되었는가?
+- 원본 데이터의 결측치가 전처리 후 제거되었는가?
+- 허용범위를 벗어난 값이 보정되었는가?
+- 데이터가 바뀌어도 같은 전처리 코드를 반복 실행할 수 있는가?
+
+---
+
+## 3.11 두 번째 변경 데이터 저장 — data-v2
+
+변경된 원본 데이터와 전처리 데이터를 다시 DVC에 등록:
+
+```bash
+dvc add data/raw/students_raw.csv
+dvc add data/processed/students_clean.csv
+```
+
+DVC Remote에 저장:
+
+```bash
+dvc push
+```
+
+Git에 새 데이터 버전 기록:
 
 ```bash
 git add .
-git commit -m "week02: data version 2"
+git commit -m "week02: data version 2 - add 100 students"
 git tag data-v2
 ```
 
@@ -1089,47 +1377,125 @@ git tag data-v2
 git log --oneline --decorate
 ```
 
----
+최종 흐름:
 
-## 3.8 과거 데이터 버전으로 이동
-
-현재 행 수 확인:
-
-```bash
-wc -l data/raw/students_raw.csv
+```text
+data-v0
+초기 데이터
+   ↓
++ 신규 50건
++ 전처리
+   ↓
+data-v1
+   ↓
++ 신규 100건
++ 전처리
+   ↓
+data-v2
 ```
 
-첫 번째 버전으로 이동:
+---
+
+## 3.12 데이터 버전별 실제 내용 비교
+
+현재 `data-v2` 상태 확인:
+
+```bash
+python - <<'PY'
+import pandas as pd
+
+raw = pd.read_csv("data/raw/students_raw.csv")
+clean = pd.read_csv("data/processed/students_clean.csv")
+
+print("RAW   :", len(raw))
+print("CLEAN :", len(clean))
+PY
+```
+
+이제 과거 버전으로 이동하면서 실제 CSV 내용이 바뀌는지 확인함.
+
+---
+
+## 3.13 data-v0으로 되돌리기
+
+```bash
+git checkout data-v0
+dvc checkout
+```
+
+확인:
+
+```bash
+python - <<'PY'
+import pandas as pd
+
+raw = pd.read_csv("data/raw/students_raw.csv")
+clean = pd.read_csv("data/processed/students_clean.csv")
+
+print("현재 버전: data-v0")
+print("RAW   :", len(raw))
+print("CLEAN :", len(clean))
+print("마지막 student_id:", raw.iloc[-1]["student_id"])
+PY
+```
+
+초기 데이터로 돌아왔는지 확인.
+
+---
+
+## 3.14 data-v1으로 이동
 
 ```bash
 git checkout data-v1
 dvc checkout
 ```
 
-다시 확인:
+확인:
 
 ```bash
-tail data/raw/students_raw.csv
+python - <<'PY'
+import pandas as pd
+
+raw = pd.read_csv("data/raw/students_raw.csv")
+clean = pd.read_csv("data/processed/students_clean.csv")
+
+print("현재 버전: data-v1")
+print("RAW   :", len(raw))
+print("CLEAN :", len(clean))
+print("마지막 student_id:", raw.iloc[-1]["student_id"])
+PY
 ```
 
-`S012`가 없는지 확인
+`S061`까지 존재하는지 확인.
 
-두 번째 버전으로 이동:
+---
+
+## 3.15 data-v2로 이동
 
 ```bash
 git checkout data-v2
 dvc checkout
 ```
 
-다시 확인:
+확인:
 
 ```bash
-tail data/raw/students_raw.csv
+python - <<'PY'
+import pandas as pd
+
+raw = pd.read_csv("data/raw/students_raw.csv")
+clean = pd.read_csv("data/processed/students_clean.csv")
+
+print("현재 버전: data-v2")
+print("RAW   :", len(raw))
+print("CLEAN :", len(clean))
+print("마지막 student_id:", raw.iloc[-1]["student_id"])
+PY
 ```
 
-`S012`가 다시 나타나는지 확인
+`S161`까지 존재하는지 확인.
 
-실습을 계속하기 위해 main 브랜치로 복귀
+실습을 계속하기 위해 main 브랜치로 복귀:
 
 ```bash
 git checkout main
@@ -1138,27 +1504,108 @@ dvc checkout
 
 ---
 
-## 3.9 Git과 DVC의 역할 정리
+## 3.16 데이터 버전이 실제로 무엇을 의미하는가?
+
+이번 실습에서는 각 버전마다 원본과 전처리 데이터가 함께 바뀜.
+
+```text
+data-v0
+├─ raw v0
+└─ processed v0
+
+data-v1
+├─ raw v1
+└─ processed v1
+
+data-v2
+├─ raw v2
+└─ processed v2
+```
+
+즉 데이터 버전은 CSV 파일 이름을 바꾸는 것이 아님.
+
+```text
+같은 파일명
+students_raw.csv
+
+하지만
+
+data-v0에서의 내용
+≠
+data-v1에서의 내용
+≠
+data-v2에서의 내용
+```
+
+DVC는 각 시점의 파일 내용을 Hash 기반으로 식별하고, Git commit/tag와 연결하여 어떤 데이터 버전이 사용되었는지 추적함.
+
+---
+
+## 3.17 Git과 DVC의 역할 정리
 
 | 관리 대상 | Git | DVC |
 |---|---:|---:|
 | Python 코드 | O | - |
 | 설정 파일 | O | - |
 | `.dvc` 메타데이터 | O | - |
-| 대용량 데이터 | 직접 관리 비권장 | O |
+| 원본 데이터 실제 내용 | 직접 관리 비권장 | O |
+| 전처리 데이터 실제 내용 | 직접 관리 비권장 | O |
 | 데이터 버전과 코드 버전 연결 | O | O |
 | 로컬/원격 데이터 저장소 | - | O |
 
-핵심 정리:
+핵심 구조:
 
 ```text
-Git commit
-   ↕ 연결
-DVC data version
+Git commit / tag
+        ↕
+     .dvc 파일
+        ↕
+DVC 데이터 버전
+        ↓
+raw + processed 데이터
 ```
 
-코드만 과거 버전으로 돌아가는 것이 아니라  
-**코드가 사용한 데이터 버전까지 함께 복원할 수 있어야 재현성 확보**
+
+---
+
+## 3.18 3차시 핵심 정리
+
+이번 실습에서 수행한 작업:
+
+```text
+초기 데이터
+   ↓
+DVC 등록
+   ↓
+data-v0
+   ↓
+50건 추가
+   ↓
+전처리 재실행
+   ↓
+DVC 갱신
+   ↓
+data-v1
+   ↓
+100건 추가
+   ↓
+전처리 재실행
+   ↓
+DVC 갱신
+   ↓
+data-v2
+   ↓
+과거 버전 복원
+```
+
+핵심 개념:
+
+- 데이터가 변경되면 전처리 결과도 다시 생성해야 함
+- DVC는 파일 이름이 아니라 **파일 내용의 버전**을 관리함
+- Git은 `.dvc` 메타데이터와 코드 버전을 관리함
+- `data-v0`, `data-v1`, `data-v2` 태그를 이용해 특정 시점의 코드와 데이터를 함께 복원할 수 있음
+- MLOps에서는 “현재 데이터가 무엇인가?”뿐 아니라 **“이 모델이 어느 데이터 버전으로 학습되었는가?”**를 재현할 수 있어야 함
+
 
 ---
 
