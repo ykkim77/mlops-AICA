@@ -428,143 +428,846 @@ REST API
 
 ---
 
-# 3차시 실습 — 모델을 Docker 이미지로 패키징
+# 3차시 실습 — Dockerfile로 모델 서빙 환경 패키징
 
 # 11. 실습 목표
 
-- 로컬 프로세스 기반 서빙의 한계를 이해함
-- MLflow 모델을 Docker Image로 패키징함
-- Docker Container로 모델 서버를 실행함
-- 동일한 REST API를 컨테이너 환경에서도 호출함
-- 모델 + 런타임 + 의존성을 함께 배포하는 개념을 이해함
+- Docker Desktop을 설치하고 WSL2 Ubuntu와 연동함
+- Dockerfile의 역할과 기본 구조를 이해함
+- 모델 서빙 애플리케이션과 Python Runtime, 의존성을 하나의 Docker Image로 패키징함
+- Docker Image를 직접 Build함
+- Docker Container를 실행하고 Host Port와 Container Port를 연결함
+- REST API로 요청을 전송하여 Prediction 결과를 확인함
+
+이번 차시의 핵심 흐름:
+
+```text
+Model Serving Application
+        +
+Python Runtime
+        +
+Dependencies
+        ↓
+Dockerfile
+        ↓
+Docker Image
+        ↓
+Docker Container
+        ↓
+REST API
+```
+
+핵심 질문:
+
+> “다른 컴퓨터에서도 동일한 Image를 이용하면 같은 모델 서빙 환경을 실행할 수 있는가?”
 
 ---
 
-# 12. Docker 동작 확인
+# 12. Docker Desktop 설치 및 WSL2 연동
 
-Docker Desktop이 실행되어 있어야 함
+이번 실습은 다음 환경을 기준으로 함.
+
+```text
+Windows
+  ↓
+Docker Desktop
+  ↓
+WSL2
+  ↓
+Ubuntu 22.04
+  ↓
+VS Code / Ubuntu Terminal
+```
+
+> Docker Desktop 버전은 특정 버전으로 고정하지 않고 실습 시점의 안정 버전을 사용함
+
+---
+
+## 12.1 WSL2 상태 확인
+
+Windows PowerShell에서:
+
+```powershell
+wsl -l -v
+```
+
+예:
+
+```text
+  NAME            STATE           VERSION
+* Ubuntu-22.04    Running         2
+```
 
 확인:
+
+- `Ubuntu-22.04`가 존재함
+- `VERSION`이 `2`임
+
+VERSION이 1이면:
+
+```powershell
+wsl --set-version Ubuntu-22.04 2
+```
+
+WSL 업데이트:
+
+```powershell
+wsl --update
+```
+
+---
+
+## 12.2 Docker Desktop 설치
+
+Windows에 Docker Desktop을 설치하고 실행함.
+
+Docker Desktop은 Windows에서 Docker Engine을 제공하며,
+이번 실습에서는 WSL2 Ubuntu에서 그 Docker Engine을 사용함.
+
+구조:
+
+```text
+Windows
+└─ Docker Desktop
+      └─ Docker Engine
+             ↑
+             │ WSL Integration
+             │
+      WSL2 Ubuntu
+          └─ docker CLI
+```
+
+> 이번 실습에서는 Ubuntu 내부에 `docker.io` 또는 Docker Engine을 별도로 설치하지 않음
+
+---
+
+## 12.3 WSL2 Backend 확인
+
+Docker Desktop에서:
+
+```text
+Settings
+→ General
+```
+
+WSL2 기반 Engine을 사용하도록 설정함.
+
+환경에 따라 WSL2가 기본 Backend로 적용되어 설정 항목이 별도로 보이지 않을 수도 있음.
+
+---
+
+## 12.4 Ubuntu WSL Integration 활성화
+
+Docker Desktop:
+
+```text
+Settings
+→ Resources
+→ WSL Integration
+```
+
+다음 항목을 활성화함.
+
+```text
+Ubuntu-22.04
+```
+
+설정을 변경한 경우:
+
+```text
+Apply
+```
+
+또는
+
+```text
+Apply & Restart
+```
+
+---
+
+## 12.5 WSL 재시작
+
+필요한 경우 Windows PowerShell에서:
+
+```powershell
+wsl --shutdown
+```
+
+그 후:
+
+1. Docker Desktop 실행
+2. Ubuntu 22.04 실행
+3. VS Code에서 WSL 환경 다시 연결
+
+---
+
+## 12.6 Docker 동작 확인
+
+WSL Ubuntu 터미널에서:
+
+```bash
+docker --version
+```
+
+Docker Compose 확인:
+
+```bash
+docker compose version
+```
+
+Docker Engine 연결 확인:
 
 ```bash
 docker version
 ```
 
-간단한 테스트:
+`Client`와 `Server` 정보가 모두 출력되는지 확인함.
+
+테스트:
 
 ```bash
 docker run --rm hello-world
 ```
 
-정상 출력이 나타나는지 확인함
+정상 메시지가 출력되면 Docker 실습 환경 준비 완료.
 
 ---
 
-# 13. 왜 컨테이너가 필요한가?
+# 13. 실습 프로젝트 구성
 
-2차시의 실행 방식:
-
-```text
-내 PC
- ├─ Python
- ├─ MLflow
- ├─ scikit-learn
- └─ Model Server
-```
-
-다른 컴퓨터에서 실행하려면 동일한 환경을 다시 맞춰야 함
-
-Docker를 사용하면:
-
-```text
-Docker Image
- ├─ OS Runtime
- ├─ Python
- ├─ MLflow
- ├─ Model Dependencies
- └─ Model
-```
-
-을 하나의 실행 가능한 패키지로 만들 수 있음
-
----
-
-# 14. MLflow 모델 Docker Image 빌드
-
-3단원 Model Registry의 `champion` 모델을 이미지로 만듦
+작업 디렉터리:
 
 ```bash
 cd ~/mlops-week04
 
-export MLFLOW_TRACKING_URI=http://127.0.0.1:5000
-
-mlflow models build-docker \
-  --model-uri "models:/iris-random-forest@champion" \
-  --name week04-iris-model
+mkdir -p docker-serving
+cd docker-serving
 ```
 
-빌드에는 시간이 걸릴 수 있음
-
----
-
-# 15. Docker Image 확인
-
-```bash
-docker images
-```
-
-다음 이미지가 나타나는지 확인함
+이번 실습의 최종 파일 구조:
 
 ```text
-week04-iris-model
+docker-serving/
+├── Dockerfile
+├── requirements.txt
+├── app.py
+└── model/
+    ├── MLmodel
+    ├── python_model.pkl 또는 model.pkl
+    └── ...
 ```
 
-필요하면:
+각 파일의 역할:
 
-```bash
-docker image inspect week04-iris-model
+```text
+Dockerfile
+→ Image를 어떻게 만들 것인지 정의
+
+requirements.txt
+→ 필요한 Python Package 정의
+
+app.py
+→ REST API 기반 Model Serving Application
+
+model/
+→ MLflow Registry에서 내려받은 champion 모델
 ```
 
 ---
 
-# 16. Docker Container 실행
+# 14. Champion 모델을 로컬로 내려받기
 
-MLflow가 생성한 이미지의 Model Server는 컨테이너 내부 `8080` 포트를 사용함
+3단원에서 등록한 모델:
 
-실행:
+```text
+iris-random-forest
+```
+
+사용할 Alias:
+
+```text
+champion
+```
+
+모델 URI:
+
+```text
+models:/iris-random-forest@champion
+```
+
+먼저 MLflow Tracking Server가 실행 중인지 확인함.
+
+터미널 1:
 
 ```bash
-docker run --rm \
-  --name iris-model \
-  -p 5002:8080 \
-  week04-iris-model
+cd ~/mlops-week03
+source .venv/bin/activate
+
+mlflow server \
+  --host 127.0.0.1 \
+  --port 5000
+```
+
+새 터미널에서:
+
+```bash
+cd ~/mlops-week04
+source .venv/bin/activate
+
+export MLFLOW_TRACKING_URI=http://127.0.0.1:5000
+
+cd ~/mlops-week04/docker-serving
+```
+
+기존 model 디렉터리가 있으면 삭제:
+
+```bash
+rm -rf model
+```
+
+Champion 모델을 내려받음:
+
+```bash
+python - <<'PY'
+import os
+import shutil
+import mlflow
+
+mlflow.set_tracking_uri("http://127.0.0.1:5000")
+
+uri = "models:/iris-random-forest@champion"
+
+downloaded = mlflow.artifacts.download_artifacts(
+    artifact_uri=uri
+)
+
+if os.path.exists("model"):
+    shutil.rmtree("model")
+
+shutil.copytree(downloaded, "model")
+
+print("Downloaded model:", downloaded)
+print("Copied to       : ./model")
+PY
+```
+
+확인:
+
+```bash
+find model -maxdepth 2 -type f | head -20
+```
+
+`MLmodel` 파일이 존재하는지 확인:
+
+```bash
+ls model/MLmodel
+```
+
+핵심:
+
+```text
+MLflow Registry
+      ↓
+champion Model
+      ↓
+로컬 model/ 디렉터리
+      ↓
+Docker Image 안에 COPY
+```
+
+> Registry에 있는 모델을 Container 실행 시마다 원격으로 읽는 것이 아니라,
+> 이번 실습에서는 모델 자체를 Image 안에 포함하여 하나의 배포 단위로 만듦
+
+---
+
+# 15. requirements.txt 작성
+
+Docker Image 안에서 필요한 Python Package를 정의함.
+
+```bash
+cat > requirements.txt <<'REQ'
+mlflow==3.18.0
+scikit-learn
+numpy
+flask
+gunicorn
+REQ
+```
+
+확인:
+
+```bash
+cat requirements.txt
+```
+
+각 Package 역할:
+
+```text
+mlflow
+→ 저장된 MLflow Model 로드
+
+scikit-learn
+→ RandomForest 모델 실행
+
+numpy
+→ 입력 데이터를 배열 형태로 처리
+
+flask
+→ REST API Application 작성
+
+gunicorn
+→ Container 내부에서 Flask Application 실행
+```
+
+---
+
+# 16. Model Serving Application 작성
+
+`app.py` 생성:
+
+```bash
+cat > app.py <<'PY'
+import os
+
+import mlflow.pyfunc
+from flask import Flask, jsonify, request
+
+app = Flask(__name__)
+
+MODEL_PATH = os.getenv("MODEL_PATH", "/app/model")
+
+model = mlflow.pyfunc.load_model(MODEL_PATH)
+
+
+@app.get("/ping")
+def ping():
+    return "OK", 200
+
+
+@app.get("/health")
+def health():
+    return jsonify({"status": "healthy"}), 200
+
+
+@app.post("/invocations")
+def invocations():
+    body = request.get_json()
+
+    if body is None or "inputs" not in body:
+        return jsonify(
+            {
+                "error": 'JSON body must contain "inputs".'
+            }
+        ), 400
+
+    inputs = body["inputs"]
+
+    predictions = model.predict(inputs)
+
+    if hasattr(predictions, "tolist"):
+        predictions = predictions.tolist()
+
+    return jsonify(
+        {
+            "predictions": predictions
+        }
+    )
+
+
+if __name__ == "__main__":
+    app.run(
+        host="0.0.0.0",
+        port=8080,
+    )
+PY
+```
+
+확인:
+
+```bash
+cat app.py
 ```
 
 구조:
 
 ```text
-Host PC                 Docker Container
-
-localhost:5002   →      8080
-                         ↓
-                    MLflow Server
-                         ↓
-                    Champion Model
+Client
+  ↓
+POST /invocations
+  ↓
+Flask Model Server
+  ↓
+MLflow Model
+  ↓
+Prediction
+  ↓
+JSON Response
 ```
-
-이 터미널은 컨테이너 실행용으로 그대로 둠
 
 ---
 
-# 17. 컨테이너 모델 상태 확인
+# 17. Dockerfile 작성
 
-다른 터미널에서:
+Dockerfile은 Docker Image를 만드는 절차를 정의함.
+
+생성:
+
+```bash
+cat > Dockerfile <<'DOCKER'
+FROM python:3.10-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app.py .
+
+COPY model ./model
+
+ENV MODEL_PATH=/app/model
+
+EXPOSE 8080
+
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "--threads", "4", "app:app"]
+DOCKER
+```
+
+확인:
+
+```bash
+cat Dockerfile
+```
+
+---
+
+## 17.1 Dockerfile 구성 이해
+
+### 1. Python Runtime
+
+```dockerfile
+FROM python:3.10-slim
+```
+
+의미:
+
+```text
+Python 3.10 실행환경을 Base Image로 사용
+```
+
+---
+
+### 2. 작업 디렉터리
+
+```dockerfile
+WORKDIR /app
+```
+
+Container 내부의 기본 작업 위치:
+
+```text
+/app
+```
+
+---
+
+### 3. Dependencies 설치
+
+```dockerfile
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt
+```
+
+구조:
+
+```text
+requirements.txt
+      ↓
+pip install
+      ↓
+MLflow / scikit-learn / Flask / Gunicorn 설치
+```
+
+---
+
+### 4. Model Serving Application 포함
+
+```dockerfile
+COPY app.py .
+```
+
+---
+
+### 5. ML Model 포함
+
+```dockerfile
+COPY model ./model
+```
+
+Container 내부:
+
+```text
+/app/model
+```
+
+에 MLflow Model이 저장됨.
+
+---
+
+### 6. Port 정의
+
+```dockerfile
+EXPOSE 8080
+```
+
+Model Server가 Container 내부의 `8080` Port를 사용함.
+
+---
+
+### 7. Container 시작 명령
+
+```dockerfile
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "--threads", "4", "app:app"]
+```
+
+Container가 실행되면 자동으로 Model Server가 시작됨.
+
+---
+
+# 18. Docker Image Build
+
+현재 위치 확인:
+
+```bash
+pwd
+```
+
+예:
+
+```text
+/home/<사용자>/mlops-week04/docker-serving
+```
+
+파일 확인:
+
+```bash
+ls
+```
+
+예:
+
+```text
+Dockerfile
+app.py
+requirements.txt
+model
+```
+
+Docker Image Build:
+
+```bash
+docker build \
+  -t week04-iris-model:v1 \
+  .
+```
+
+의미:
+
+```text
+docker build
+→ Dockerfile을 읽어 Image 생성
+
+-t week04-iris-model:v1
+→ Image 이름과 Tag 지정
+
+.
+→ 현재 디렉터리를 Build Context로 사용
+```
+
+전체 흐름:
+
+```text
+Dockerfile
+   +
+app.py
+   +
+requirements.txt
+   +
+model/
+   ↓
+docker build
+   ↓
+week04-iris-model:v1
+```
+
+---
+
+# 19. Docker Image 확인
+
+```bash
+docker images
+```
+
+다음 Image가 나타나는지 확인:
+
+```text
+week04-iris-model   v1
+```
+
+상세 확인:
+
+```bash
+docker image inspect week04-iris-model:v1
+```
+
+---
+
+# 20. Docker Container 실행
+
+Image를 이용하여 Container 실행:
+
+```bash
+docker run --rm \
+  --name iris-model \
+  -p 5002:8080 \
+  week04-iris-model:v1
+```
+
+구조:
+
+```text
+Host PC                      Docker Container
+
+localhost:5002      ─────→   8080
+                                 ↓
+                           Gunicorn
+                                 ↓
+                           Flask App
+                                 ↓
+                           MLflow Model
+```
+
+이 터미널은 Container 실행 상태로 유지함.
+
+---
+
+# 21. Port Mapping 이해
+
+실행 명령:
+
+```bash
+-p 5002:8080
+```
+
+형식:
+
+```text
+-p HostPort:ContainerPort
+```
+
+이번 실습:
+
+```text
+Host 5002
+     ↓
+Container 8080
+```
+
+따라서 사용자는:
+
+```text
+http://127.0.0.1:5002
+```
+
+로 접속하지만,
+
+Container 내부 Model Server는:
+
+```text
+0.0.0.0:8080
+```
+
+에서 실행됨.
+
+전체 흐름:
+
+```text
+Host
+  ↓
+localhost:5002
+  ↓
+Port Mapping
+  ↓
+Docker Container:8080
+  ↓
+Model Server
+  ↓
+ML Model
+```
+
+---
+
+# 22. Container 상태 확인
+
+새 Ubuntu 터미널에서:
+
+```bash
+docker ps
+```
+
+다음 Container를 확인:
+
+```text
+iris-model
+```
+
+상태 확인:
 
 ```bash
 curl http://127.0.0.1:5002/ping
 ```
 
-예측 요청:
+예:
+
+```text
+OK
+```
+
+Health Check:
+
+```bash
+curl http://127.0.0.1:5002/health
+```
+
+예:
+
+```json
+{"status":"healthy"}
+```
+
+---
+
+# 23. REST API 요청
+
+Iris 입력 데이터:
+
+```text
+sepal length
+sepal width
+petal length
+petal width
+```
+
+예제:
+
+```text
+5.1, 3.5, 1.4, 0.2
+```
+
+요청:
 
 ```bash
 curl -X POST \
@@ -577,50 +1280,192 @@ curl -X POST \
       }'
 ```
 
-2차시의 결과와 동일한 형태의 예측이 반환되는지 확인함
+예측 결과가 JSON으로 반환되는지 확인함.
+
+예:
+
+```json
+{
+  "predictions": [0]
+}
+```
 
 ---
 
-# 18. 로컬 서빙과 Docker 서빙 비교
+# 24. 여러 데이터를 한 번에 요청
 
-## 로컬 프로세스
-
-```text
-mlflow models serve
+```bash
+curl -X POST \
+  http://127.0.0.1:5002/invocations \
+  -H "Content-Type: application/json" \
+  -d '{
+        "inputs": [
+          [5.1, 3.5, 1.4, 0.2],
+          [6.0, 2.9, 4.5, 1.5],
+          [6.7, 3.1, 5.6, 2.4]
+        ]
+      }'
 ```
 
-실행 환경:
+여러 Prediction이 반환되는지 확인함.
+
+---
+
+# 25. Prediction 결과 확인
+
+Iris Target:
 
 ```text
-학생 PC의 Python 환경
+0 = setosa
+1 = versicolor
+2 = virginica
 ```
 
-## Docker
+따라서:
+
+```json
+{
+  "predictions": [0, 1, 2]
+}
+```
+
+처럼 반환된다면 각 입력 데이터를 모델이 해당 Class로 분류한 것임.
+
+---
+
+# 26. Docker Image 내부 구성 정리
+
+이번에 생성한 Image의 논리적 구조:
 
 ```text
-docker run
+week04-iris-model:v1
+│
+├─ Python Runtime
+│    └─ Python 3.10
+│
+├─ Dependencies
+│    ├─ MLflow
+│    ├─ scikit-learn
+│    ├─ NumPy
+│    ├─ Flask
+│    └─ Gunicorn
+│
+├─ Model Serving Application
+│    └─ app.py
+│
+└─ ML Model
+     └─ model/
 ```
 
-실행 환경:
+즉:
 
 ```text
-Docker Image 안에 패키징된 독립 환경
+Model Server
++
+Python Runtime
++
+Dependencies
++
+ML Model
+      ↓
+Docker Image
 ```
 
-핵심 차이:
+로 패키징한 것임.
 
-| 구분 | 로컬 서빙 | Docker 서빙 |
+---
+
+# 27. 로컬 서빙과 Docker 서빙 비교
+
+2차시:
+
+```text
+Host Python 환경
+      ↓
+MLflow Model Server
+      ↓
+REST API
+```
+
+3차시:
+
+```text
+Docker Image
+      ↓
+Docker Container
+      ↓
+Model Server
+      ↓
+REST API
+```
+
+비교:
+
+| 구분 | 2차시 로컬 서빙 | 3차시 Docker 서빙 |
 |---|---|---|
-| 실행 환경 | Host 환경 의존 | Image에 포함 |
+| Python Runtime | Host 환경 사용 | Image 내부 포함 |
+| Package | Host에 설치 | Image에 설치 |
+| Model Server | Host Process | Container 내부 |
+| Model | Host에서 로드 | Image 내부 포함 |
+| 실행 단위 | Python Process | Docker Container |
 | 이동성 | 낮음 | 높음 |
-| 배포 일관성 | 환경에 따라 달라질 수 있음 | 동일 Image 사용 |
-| 확장 | 추가 프로세스 필요 | Container 복제 용이 |
+| 재현성 | Host 환경 영향 | Image 기준으로 일관성 높음 |
 
 ---
 
-# 19. 컨테이너 중지
+# 28. 동일 Image로 다시 실행
 
-`docker run`을 실행한 터미널에서:
+실행 중인 Container 중지:
+
+```bash
+docker stop iris-model
+```
+
+동일한 Image로 다시 실행:
+
+```bash
+docker run --rm \
+  --name iris-model \
+  -p 5002:8080 \
+  week04-iris-model:v1
+```
+
+같은 REST API 요청을 다시 보냄.
+
+```bash
+curl -X POST \
+  http://127.0.0.1:5002/invocations \
+  -H "Content-Type: application/json" \
+  -d '{
+        "inputs": [
+          [5.1, 3.5, 1.4, 0.2]
+        ]
+      }'
+```
+
+동일한 형태의 Prediction 결과가 나오는지 확인함.
+
+핵심:
+
+```text
+동일 Docker Image
+      ↓
+동일 Runtime
++
+동일 Dependencies
++
+동일 Model
++
+동일 Application
+```
+
+따라서 다른 Docker 실행환경에서도 동일한 서빙 구성을 재현하기 쉬움.
+
+---
+
+# 29. Container 종료
+
+실행 터미널에서:
 
 ```text
 Ctrl + C
@@ -632,45 +1477,75 @@ Ctrl + C
 docker stop iris-model
 ```
 
----
+확인:
 
-# 20. 3차시 핵심
-
-2차시:
-
-```text
-Model
- ↓
-Local Process
- ↓
-REST API
+```bash
+docker ps
 ```
 
-3차시:
+Image는 그대로 남아 있음.
+
+```bash
+docker images
+```
+
+---
+
+# 30. 3차시 핵심 정리
+
+이번 실습 전체 흐름:
 
 ```text
-Model
- ↓
+MLflow Registry
+      ↓
+champion Model
+      ↓
+model/ 다운로드
+      ↓
+Model Serving Application 작성
+      ↓
+requirements.txt 작성
+      ↓
+Dockerfile 작성
+      ↓
+docker build
+      ↓
 Docker Image
- ↓
-Container
- ↓
+      ↓
+docker run
+      ↓
+Docker Container
+      ↓
+Port Mapping
+      ↓
 REST API
+      ↓
+Prediction
 ```
 
-컨테이너화를 통해:
+슬라이드의 흐름과 연결:
 
 ```text
-Model
-+
-Runtime
-+
-Dependencies
+1. Dockerfile 작성
+2. 필요 Package 정의 및 설치
+3. Model Serving 환경 구성
+4. Docker Image Build
+5. Container 실행
+6. Port Mapping
+7. REST API 요청
+8. Prediction 결과 확인
 ```
 
-를 하나의 배포 단위로 만들 수 있음
+핵심 개념:
+
+> Dockerfile은 모델 서빙 환경을 어떤 순서와 구성으로 Image에 담을지 정의하는 설계도임
+
+> Docker Image는 Model Server, Python Runtime, Dependencies, Model을 포함한 실행 가능한 배포 패키지임
+
+> Docker Container는 그 Image를 실제로 실행한 인스턴스임
 
 ---
+
 
 # 4차시 실습 — 다중 인스턴스와 부하분산
 
