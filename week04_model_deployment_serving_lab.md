@@ -1,4 +1,4 @@
-# 4주차 실습 — 모델 배포 및 서비스화
+# 4단원 실습 — 모델 배포 및 서비스화
 
 > MLOps 방법론  
 > 주제: 로컬 REST API 서빙 → Docker 컨테이너 패키징 → 다중 인스턴스·부하분산  
@@ -9,12 +9,12 @@
 
 # 0. 실습 개요
 
-이번 주에는 3주차에서 MLflow Model Registry에 등록하고 `champion` Alias를 지정한 Iris Random Forest 모델을 실제 서비스 형태로 발전시킴
+이번 주에는 3단원에서 MLflow Model Registry에 등록하고 `champion` Alias를 지정한 Iris Random Forest 모델을 실제 서비스 형태로 발전시킴
 
 전체 흐름은 다음과 같음
 
 ```text
-[3주차 결과]
+[3단원 결과]
 MLflow Model Registry
         ↓
 iris-random-forest@champion
@@ -47,15 +47,15 @@ Nginx Load Balancer
 
 이번 주 핵심 질문은 다음과 같음
 
-> **“선택한 모델을 다른 프로그램이 사용할 수 있는 서비스로 어떻게 만들 것인가?”**
+> “선택한 모델을 다른 프로그램이 사용할 수 있는 서비스로 어떻게 만들 것인가?”
 
 ---
 
 # 1. 사전 준비
 
-## 1.1 3주차 MLflow Tracking Server 실행
+## 1.1 3단원 MLflow Tracking Server 실행
 
-3주차 프로젝트에서 MLflow Server를 실행함
+3단원 프로젝트에서 MLflow Server를 실행함
 
 터미널 1:
 
@@ -71,7 +71,7 @@ mlflow server --host 127.0.0.1 --port 5000
 http://127.0.0.1:5000
 ```
 
-MLflow UI의 **Models** 메뉴에서 다음 모델이 존재하는지 확인함
+MLflow UI의 Models 메뉴에서 다음 모델이 존재하는지 확인함
 
 ```text
 iris-random-forest
@@ -81,7 +81,7 @@ iris-random-forest
 
 ---
 
-## 1.2 4주차 작업 디렉터리 생성
+## 1.2 4단원 작업 디렉터리 생성
 
 터미널 2:
 
@@ -94,9 +94,9 @@ cd ~/mlops-week04
 
 ## 1.3 Python 가상환경
 
-3주차 환경을 그대로 사용해도 됨
+3단원 환경을 그대로 사용해도 됨
 
-> 새로 만들 경우에도 MLflow 버전을 3주차 Tracking Server와 동일하게 맞춤
+> 새로 만들 경우에도 MLflow 버전을 3단원 Tracking Server와 동일하게 맞춤
 
 새로 만들 경우:
 
@@ -111,7 +111,7 @@ pip install "mlflow==3.18.0" scikit-learn requests
 
 ## 1.4 MLflow Tracking URI 설정
 
-CLI가 3주차 Tracking Server와 Model Registry를 바라보도록 설정함
+CLI가 3단원 Tracking Server와 Model Registry를 바라보도록 설정함
 
 ```bash
 export MLFLOW_TRACKING_URI=http://127.0.0.1:5000
@@ -205,7 +205,7 @@ HTTP Response
 
 ## 4.1 모델 URI
 
-3주차에서 등록한 모델:
+3단원에서 등록한 모델:
 
 ```text
 iris-random-forest
@@ -491,7 +491,7 @@ Docker Image
 
 # 14. MLflow 모델 Docker Image 빌드
 
-3주차 Model Registry의 `champion` 모델을 이미지로 만듦
+3단원 Model Registry의 `champion` 모델을 이미지로 만듦
 
 ```bash
 cd ~/mlops-week04
@@ -682,8 +682,8 @@ Dependencies
 - 요청이 여러 모델 인스턴스로 분산되는 것을 확인함
 - Scale-out과 Load Balancing의 기본 원리를 이해함
 
-> 이번 실습은 **자동 확장(Auto Scaling)** 실습이 아님  
-> 동일한 컨테이너를 여러 개 미리 실행하고 요청을 분산하는 **수평 확장(Scale-out)과 Load Balancing의 기본 구조**를 실습함
+> 이번 실습은 자동 확장(Auto Scaling) 실습이 아님  
+> 동일한 컨테이너를 여러 개 미리 실행하고 요청을 분산하는 수평 확장(Scale-out)과 Load Balancing의 기본 구조를 실습함
 
 ---
 
@@ -1127,7 +1127,7 @@ docker images
 
 ---
 
-# 36. 4주차 전체 실습 흐름
+# 36. 4단원 전체 실습 흐름
 
 ```text
 MLflow Model Registry
@@ -1251,10 +1251,10 @@ Model Instances
 
 ---
 
-# 38. 3주차와 4주차 연결
+# 38. 3단원와 4단원 연결
 
 ```text
-3주차
+3단원
 
 Experiment
    ↓
@@ -1264,7 +1264,7 @@ Model Registry
    ↓
 champion
 
-4주차
+4단원
 
 champion
    ↓
@@ -1281,9 +1281,9 @@ Load Balancing
 
 ---
 
-# 39. 다음 주차 연결
+# 39. 다음 단원 연결
 
-5주차에서는 지금까지 사람이 직접 실행하던 과정을 자동화함
+5단원에서는 지금까지 사람이 직접 실행하던 과정을 자동화함
 
 현재:
 
@@ -1299,7 +1299,7 @@ Load Balancing
 배포 준비
 ```
 
-5주차:
+5단원:
 
 ```text
 Git Push

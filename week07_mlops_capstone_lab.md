@@ -1,4 +1,4 @@
-# 7주차 실습 — MLOps 종합 실습 및 사례 연구
+# 7단원 실습 — MLOps 종합 실습 및 사례 연구
 
 > MLOps 방법론  
 > 구성: 1차시 이론 + 2차시 실습 + 3차시 실습  
@@ -10,8 +10,8 @@
 
 # 0. 이번 주 목표
 
-7주차는 새로운 도구를 배우는 주차가 아니라,  
-2~6주차에 배운 요소를 하나의 MLOps 흐름으로 연결하는 종합 실습임
+7단원는 새로운 도구를 배우는 단원가 아니라,  
+2~6단원에 배운 요소를 하나의 MLOps 흐름으로 연결하는 종합 실습임
 
 전체 흐름:
 
@@ -61,7 +61,7 @@ Model Registry
 
 # 1. 실습 시나리오
 
-이번 실습에서는 **학습위험 학생 예측**을 예시 사례로 사용함
+이번 실습에서는 학습위험 학생 예측을 예시 사례로 사용함
 
 목표:
 
@@ -124,7 +124,7 @@ pip install \
 ```
 
 > `zenml[local]`: 로컬 DB 기반 실행에 필요한 의존성 포함 (기본 `zenml`만 설치하면 `zenml init` 실패)  
-> MLflow 버전은 3주차와 동일하게 고정
+> MLflow 버전은 3단원와 동일하게 고정
 
 폴더 생성:
 
@@ -420,7 +420,7 @@ python src/make_data.py
 
 # 13. MLflow Server 실행
 
-> 3·4주차 MLflow Server가 아직 실행 중이면 `5000` 포트 충돌 발생 → 먼저 종료 (`Ctrl + C`)
+> 3·4단원 MLflow Server가 아직 실행 중이면 `5000` 포트 충돌 발생 → 먼저 종료 (`Ctrl + C`)
 
 별도 터미널:
 
@@ -594,7 +594,7 @@ def evaluate_and_register_step(
 
         if accuracy >= min_accuracy:
 
-            # MLflow 3.x: name 사용, RandomForest는 cloudpickle로 저장 (3주차와 동일)
+            # MLflow 3.x: name 사용, RandomForest는 cloudpickle로 저장 (3단원와 동일)
             model_info = mlflow.sklearn.log_model(
                 sk_model=model,
                 name="model",
@@ -934,7 +934,7 @@ DVC와 Evidently를 연결하여
 
 ---
 
-# 24. 7주차 전체 정리
+# 24. 7단원 전체 정리
 
 ```text
 Business Problem
@@ -969,40 +969,40 @@ Candidate
 
 ---
 
-# 25. 2~7주차 전체 연결
+# 25. 2~7단원 전체 연결
 
 ```text
-2주차
+2단원
 Data Management
 DVC
 
 ↓
 
-3주차
+3단원
 Experiment Tracking
 MLflow
 
 ↓
 
-4주차
+4단원
 Model Serving
 Docker / Nginx
 
 ↓
 
-5주차
+5단원
 Automation
 GitHub Actions / ZenML
 
 ↓
 
-6주차
+6단원
 Monitoring
 Evidently / Retraining
 
 ↓
 
-7주차
+7단원
 Integration
 End-to-End MLOps Design
 ```
@@ -1012,10 +1012,10 @@ End-to-End MLOps Design
 # 26. 선택 확장 과제
 
 1. `evaluate_step`을 별도 ZenML Step으로 분리함
-2. 2주차 DVC를 연결하여 데이터 버전을 함께 관리함
+2. 2단원 DVC를 연결하여 데이터 버전을 함께 관리함
 3. GitHub Actions에서 Pipeline을 자동 실행함
 4. Accuracy 외에 Precision, Recall, F1-score를 기록함
 5. Model Registry에 `candidate`와 `champion` Alias를 적용함
-6. 4주차 방식으로 `candidate` 모델을 REST API로 Serving함
+6. 4단원 방식으로 `candidate` 모델을 REST API로 Serving함
 7. Evidently를 이용하여 입력 데이터 Drift를 추가로 모니터링함
 8. 자신의 전공 또는 업무 사례를 하나 선정하여 동일한 MLOps 구조로 재설계함
