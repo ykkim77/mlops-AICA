@@ -519,7 +519,7 @@ wsl --update
 
 ## 12.2 Docker Desktop 설치
 
-Windows에 Docker Desktop을 설치하고 실행함.
+Windows에 [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/) 을 설치하고 실행함. 
 
 Docker Desktop은 Windows에서 Docker Engine을 제공하며,
 이번 실습에서는 WSL2 Ubuntu에서 그 Docker Engine을 사용함.
