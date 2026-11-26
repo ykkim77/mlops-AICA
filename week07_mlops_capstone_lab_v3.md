@@ -1501,39 +1501,9 @@ Champion 자동 승격 Gate
 Docker Serving
 ```
 
----
 
-# 23. 발표 예시
 
-```text
-우리 파이프라인은
-학습위험 학생 예측을 목적으로 설계했습니다.
-
-전처리 단계에서는
-Feature와 Target을 분리하고
-Train/Test 데이터로 나눴습니다.
-
-학습 단계에서는
-Random Forest를 사용했습니다.
-
-n_estimators와 max_depth를
-Parameter로 관리했습니다.
-
-평가 단계에서는
-Accuracy를 MLflow에 기록했고,
-
-Accuracy가 0.85 이상일 경우에만
-Model Registry에 등록하도록 구성했습니다.
-
-추후에는
-DVC와 Evidently를 연결하여
-데이터 버전과 Drift까지
-관리할 수 있도록 확장할 수 있습니다.
-```
-
----
-
-# 24. 7단원 전체 정리
+# 23. 7단원 전체 정리
 
 ```text
 Business Problem
@@ -1566,49 +1536,9 @@ Candidate
 
 를 판단하는 것임
 
----
 
-# 25. 2~7단원 전체 연결
 
-```text
-2단원
-Data Management
-DVC
-
-↓
-
-3단원
-Experiment Tracking
-MLflow
-
-↓
-
-4단원
-Model Serving
-Docker / Nginx
-
-↓
-
-5단원
-Automation
-GitHub Actions / ZenML
-
-↓
-
-6단원
-Monitoring
-Evidently / Retraining
-
-↓
-
-7단원
-Integration
-End-to-End MLOps Design
-```
-
----
-
-# 26. 선택 확장 과제
+# 24. 선택 확장 과제
 
 1. `evaluate_step`을 별도 ZenML Step으로 분리함
 2. 2단원 DVC를 연결하여 데이터 버전을 함께 관리함
