@@ -546,7 +546,7 @@ deploy
 ### 6.7 Runner — `runs-on`
 
 ```yaml
-runs-on: ubuntu-latest
+runs-on: ubuntu-24.04
 ```
 
 의미:
