@@ -161,7 +161,7 @@ mlops-week07/
 # 3. 실습 목표
 
 이번 차시는 문서로 Pipeline을 설명하는 데서 끝내지 않고,
-**설계안을 실제 ZenML 코드 구조로 옮기고 Mock Pipeline을 실행하여 설계를 검증**함.
+설계안을 실제 ZenML 코드 구조로 옮기고 Mock Pipeline을 실행하여 설계를 검증함.
 
 - 문제를 MLOps 단계로 분해함
 - 각 Step의 입력과 출력을 직접 정의함
@@ -355,7 +355,7 @@ Output
 핵심:
 
 > Pipeline 설계의 핵심은 Step 이름보다  
-> **각 Step의 Output이 다음 Step의 어떤 Input으로 연결되는지 정의하는 것**임
+> 각 Step의 Output이 다음 Step의 어떤 Input으로 연결되는지 정의하는 것임
 
 ---
 
@@ -389,7 +389,7 @@ Train
 Evaluate
 ```
 
-Step의 **입력/출력 연결 구조만 실제 ZenML 코드로 구현**함.
+Step의 입력/출력 연결 구조만 실제 ZenML 코드로 구현함.
 
 `src/pipeline_design.py` 생성:
 
@@ -581,7 +581,7 @@ Evaluate
 ```
 
 여기서 실제 데이터와 모델은 사용하지 않았지만
-**Pipeline의 입출력 연결과 실행 순서는 실제로 동작함**.
+Pipeline의 입출력 연결과 실행 순서는 실제로 동작함.
 
 ---
 
@@ -634,7 +634,7 @@ preprocess_step
 ```
 
 ZenML은 Step 이름만 보고 연결하는 것이 아니라
-**앞 Step의 Output 객체가 뒤 Step의 Input으로 전달되는 관계를 보고 DAG를 구성함**.
+앞 Step의 Output 객체가 뒤 Step의 Input으로 전달되는 관계를 보고 DAG를 구성함.
 
 ---
 
@@ -782,7 +782,7 @@ Output
 
 3차시에서는 Mock Step을 실제 코드로 교체하고 MLflow를 연결함.
 
-2차시에서는 **어디에서 무엇을 기록할지 먼저 설계**함.
+2차시에서는 어디에서 무엇을 기록할지 먼저 설계함.
 
 Train Step:
 

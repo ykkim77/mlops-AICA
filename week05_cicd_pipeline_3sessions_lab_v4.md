@@ -151,7 +151,7 @@ PASS / FAIL
 
 ### CI(Continuous Integration)란?
 
-CI는 **지속적 통합**을 의미함.
+CI는 지속적 통합을 의미함.
 
 개발자가 코드를 변경하여 공용 Repository에 통합할 때마다
 자동으로 테스트하여 문제가 있는지 빠르게 확인하는 개발 방식임.

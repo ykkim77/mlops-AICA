@@ -418,7 +418,7 @@ drift_share=0.5
 ```
 
 은 개별 Feature의 통계검정 threshold가 아니라,
-**전체 Feature 중 어느 정도가 Drift일 때 Dataset 수준에서 Drift로 볼지 정하는 정책 기준**임.
+전체 Feature 중 어느 정도가 Drift일 때 Dataset 수준에서 Drift로 볼지 정하는 정책 기준임.
 
 ## Cell 21 — drift_share 기준 실험
 
